@@ -89,6 +89,26 @@ export default function DashboardShell({ role = "farmer" }) {
   const [notificationsCount, setNotificationsCount] = useState(0);
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [dark, setDark] = useState(() => {
+    // Apply synchronously before first paint to avoid a flash of light theme.
+    try {
+      const stored = localStorage.getItem("agrispark_theme");
+      const isDark = stored === "dark";
+      document.documentElement.setAttribute("data-theme", stored || "light");
+      return isDark;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    try {
+      localStorage.setItem("agrispark_theme", dark ? "dark" : "light");
+    } catch {
+      /* ignore */
+    }
+  }, [dark]);
 
   const badges = { cart: cartCount, messages: messagesCount, notifications: notificationsCount };
 
@@ -223,6 +243,14 @@ export default function DashboardShell({ role = "farmer" }) {
           </form>
 
           <div className="d2-header-actions">
+            <button
+              className="d2-hicon d2-theme-toggle"
+              onClick={() => setDark((v) => !v)}
+              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+              title={dark ? "Light mode" : "Dark mode"}
+            >
+              <Icon name={dark ? "sunny-outline" : "moon-outline"} size={18} />
+            </button>
             {isBuyer && (
               <Link to="/buyer/cart" className="d2-hicon">
                 <Icon name="cart-outline" size={19} />

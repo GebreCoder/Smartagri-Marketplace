@@ -2,6 +2,8 @@ import { Router } from "express";
 import { query } from "../db.js";
 import { requireAuth, requireBuyer, requireFarmer } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/error.js";
+import { getWeather } from "../services/weather.js";
+import { farmerInsights, buyerInsights, generateAiParagraph } from "../services/insights.js";
 import {
   capitalize,
   formatDateTime,
@@ -231,45 +233,18 @@ router.get(
       };
     });
 
-    // ── AI insights (rule-based on real data) ──
-    const aiInsights = [];
+    // ── AI insights (rules on real data; upgradeable to LLM) ──
     const lowStockProducts = products.filter((p) => Number(p.quantity || 0) <= 10);
-    if (lowStockProducts.length) {
-      aiInsights.push({ icon: "alert", title: "Restock alert", text: `${lowStockProducts[0].name} is running low — ${lowStockProducts[0].quantity} units left.` });
-    }
-    if (pendingOrders > 0) {
-      aiInsights.push({ icon: "order", title: "Orders awaiting action", text: `You have ${pendingOrders} pending order${pendingOrders === 1 ? "" : "s"} ready to accept.` });
-    }
-    const harvestReady = cropRows.rows.find((c) => Number(c.progress || 0) >= 80);
-    if (harvestReady) {
-      aiInsights.push({ icon: "harvest", title: "Best harvest time", text: `${harvestReady.name} is ready — harvest recommended in the next 5–7 days.` });
-    }
-    const topRiser = priceRows.rows.filter((p) => Number(p.change_pct) > 0).sort((a, b) => Number(b.change_pct) - Number(a.change_pct))[0];
-    if (topRiser) {
-      aiInsights.push({ icon: "trend", title: "Market opportunity", text: `${topRiser.name} prices are up ${topRiser.change_pct}% — consider selling soon.` });
-    }
-    if (aiInsights.length < 4) {
-      aiInsights.push({ icon: "water", title: "Irrigation recommended", text: "Your crops may need irrigation in the next 2 days." });
-    }
-    if (aiInsights.length < 4) {
-      aiInsights.push({ icon: "pest", title: "Pest risk detected", text: "Low risk of aphids on tomatoes this week." });
-    }
+    const aiInsights = farmerInsights({
+      products,
+      orders,
+      crops: cropRows.rows,
+      prices: priceRows.rows,
+      pendingOrders,
+    });
 
-    // ── Weather (static demo feed) ──
-    const weather = {
-      temp: 24,
-      condition: "Partly Cloudy",
-      humidity: 65,
-      rain: 10,
-      wind: 12,
-      forecast: [
-        { day: "Thu", hi: 26, lo: 17, icon: "sunny" },
-        { day: "Fri", hi: 25, lo: 16, icon: "partly" },
-        { day: "Sat", hi: 24, lo: 15, icon: "rain" },
-        { day: "Sun", hi: 27, lo: 18, icon: "sunny" },
-        { day: "Mon", hi: 23, lo: 14, icon: "cloudy" },
-      ],
-    };
+    // ── Weather (live Open-Meteo with demo fallback) ──
+    const weather = await getWeather(farmer.location || "Addis Ababa");
 
     const recentOrders = orders.slice(0, 5).map((o) => ({
       displayId: toDisplayOrderId(o.id),
@@ -447,15 +422,8 @@ router.get(
       rating: 4.8,
     }));
 
-    // ── AI assistant insights ──
-    const aiInsights = [];
-    const tomatoPrice = priceRows.rows.find((p) => /tomato/i.test(p.name));
-    if (tomatoPrice) aiInsights.push({ text: `Tomato prices are ${Number(tomatoPrice.change_pct) >= 0 ? "up" : "lower"} this week in your area (${tomatoPrice.change_pct}%).` });
-    aiInsights.push({ text: "Your favorite coffee is back in stock." });
-    aiInsights.push({ text: "A nearby farm has fresh avocado available." });
-    aiInsights.push({ text: "You may want to reorder wheat soon." });
-    const onionPrice = priceRows.rows.find((p) => /onion/i.test(p.name));
-    if (onionPrice && Number(onionPrice.change_pct) > 0) aiInsights.push({ text: "Prices for onions are expected to increase." });
+    // ── AI assistant insights (rules on real data; upgradeable to LLM) ──
+    const aiInsights = buyerInsights({ prices: priceRows.rows, favorites });
 
     // ── Recent activity feed ──
     const activity = [];
@@ -710,6 +678,73 @@ router.delete(
     if (!rows[0]) return res.status(404).json({ message: "Favorite not found." });
     await query("DELETE FROM favorites WHERE id = $1", [req.params.id]);
     return res.json({ message: "Removed from favorites." });
+  })
+);
+
+// ── Harvests CRUD (farmer) ────────────────────────────────────────
+router.get(
+  "/harvests",
+  requireFarmer,
+  asyncHandler(async (req, res) => {
+    const { rows } = await query("SELECT * FROM harvests WHERE farmer_id = $1 ORDER BY harvested_at DESC", [req.user.id]);
+    return res.json({ harvests: rows });
+  })
+);
+
+router.post(
+  "/harvests",
+  requireFarmer,
+  asyncHandler(async (req, res) => {
+    const cropName = normalizeText(req.body.cropName);
+    if (!cropName) return res.status(400).json({ message: "Crop name is required." });
+    const quantityKg = Math.max(0, Number(req.body.quantityKg || 0));
+    if (!(quantityKg > 0)) return res.status(400).json({ message: "Quantity (kg) must be greater than zero." });
+    const { rows } = await query(
+      `INSERT INTO harvests (farmer_id, crop_name, category, quantity_kg, harvested_at)
+       VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, now())) RETURNING *`,
+      [
+        req.user.id,
+        cropName,
+        normalizeText(req.body.category) || "Vegetables",
+        quantityKg,
+        req.body.harvestedAt || null,
+      ]
+    );
+    return res.status(201).json({ harvest: rows[0] });
+  })
+);
+
+router.delete(
+  "/harvests/:id",
+  requireFarmer,
+  asyncHandler(async (req, res) => {
+    const { rows } = await query("SELECT id FROM harvests WHERE id = $1 AND farmer_id = $2", [req.params.id, req.user.id]);
+    if (!rows[0]) return res.status(404).json({ message: "Harvest record not found." });
+    await query("DELETE FROM harvests WHERE id = $1", [req.params.id]);
+    return res.json({ message: "Harvest record deleted." });
+  })
+);
+
+// ── Weather (any authenticated user) ───────────────────────────────
+router.get(
+  "/weather",
+  asyncHandler(async (req, res) => {
+    const location = String(req.query.location || "");
+    const weather = await getWeather(location || (req.user?.location || "Addis Ababa"));
+    return res.json({ weather });
+  })
+);
+
+// ── AI insight paragraph (any authenticated user) ──────────────────
+// Uses the configured Groq/Gemini key when present; falls back to rules.
+router.post(
+  "/ai-insight",
+  asyncHandler(async (req, res) => {
+    const role = String(req.body.role || "farmer").toLowerCase();
+    const context = String(req.body.context || "").trim().slice(0, 1200);
+    const fallback = String(req.body.fallback || "");
+    const result = await generateAiParagraph({ role, context, fallback });
+    return res.json(result);
   })
 );
 

@@ -66,6 +66,7 @@ export default function BuyerHome() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState(new Set());
+  const [aiParagraph, setAiParagraph] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -77,6 +78,22 @@ export default function BuyerHome() {
       setLoading(false);
     }
   }, []);
+
+  // Real LLM insight paragraph when a key is configured (rules fallback otherwise).
+  useEffect(() => {
+    if (!data?.aiInsights?.length) return;
+    const context =
+      `Total orders: ${data.kpis?.totalOrders?.value ?? 0}. Total spent: ${data.kpis?.totalSpent?.value ?? 0} ETB. ` +
+      `Favorite farmers: ${data.kpis?.favoriteFarmers?.value ?? 0}. Recent purchases: ${data.activity.map((a) => a.text).join("; ") || "none"}.`;
+    api
+      .post("/api/dashboard/ai-insight", {
+        role: "buyer",
+        context,
+        fallback: data.aiInsights[0]?.text || "Check the market trends to find this week's best deals.",
+      })
+      .then((result) => setAiParagraph(result))
+      .catch(() => setAiParagraph(null));
+  }, [data]);
 
   useEffect(() => {
     setLoading(true);
@@ -374,6 +391,17 @@ export default function BuyerHome() {
             <span className="d2-new-badge">New</span>
           </div>
           <div className="d2-insights">
+            {aiParagraph?.text && (
+              <div className="d2-insight d2-insight-hero">
+                <span className="d2-insight-icon"><Icon name="sparkles" size={15} color="#16A34A" /></span>
+                <div>
+                  <div className="d2-insight-title">
+                    AI Summary {aiParagraph.source === "ai" && <span className="d2-tag-live">Live AI</span>}
+                  </div>
+                  <div className="d2-insight-text">{aiParagraph.text}</div>
+                </div>
+              </div>
+            )}
             {aiInsights.map((insight, index) => (
               <div className="d2-insight" key={index}>
                 <span className="d2-insight-icon"><Icon name="sparkles-outline" size={15} /></span>

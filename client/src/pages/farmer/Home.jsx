@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Icon from "../../Icon.jsx";
 import { api } from "../../api.js";
+import Modal from "../../components/Modal.jsx";
 import { Spinner } from "../../components/Spinner.jsx";
 import { Sparkline, AreaChart, DonutChart, ProgressBar } from "../../components/Charts.jsx";
 import { getSocket } from "../../socket.js";
@@ -51,11 +52,17 @@ const INSIGHT_ICON = {
 
 const fmtMoney = (v) => `ETB ${Number(v || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
+const EMPTY_HARVEST = { cropName: "", category: "Vegetables", quantityKg: "", harvestedAt: "" };
+
 export default function FarmerHome() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState(30);
+  const [harvestOpen, setHarvestOpen] = useState(false);
+  const [harvestForm, setHarvestForm] = useState(EMPTY_HARVEST);
+  const [savingHarvest, setSavingHarvest] = useState(false);
+  const [aiParagraph, setAiParagraph] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -67,6 +74,44 @@ export default function FarmerHome() {
       setLoading(false);
     }
   }, [range]);
+
+  // Real LLM insight paragraph when a key is configured (rules fallback otherwise).
+  useEffect(() => {
+    if (!data?.aiInsights?.length) return;
+    const context = `Active products: ${data.kpis?.activeProducts?.value ?? 0}. Pending orders: ${data.kpis?.pendingOrders?.value ?? 0}. ` +
+      `Total sales: ${data.kpis?.totalSales?.value ?? 0} ETB. Crops: ${data.crops.map((c) => `${c.name} (${c.progress}%)`).join(", ") || "none"}.`;
+    api
+      .post("/api/dashboard/ai-insight", {
+        role: "farmer",
+        context,
+        fallback: data.aiInsights[0]?.text || "Keep an eye on your pending orders and market prices today.",
+      })
+      .then((result) => setAiParagraph(result))
+      .catch(() => setAiParagraph(null));
+  }, [data]);
+
+  const saveHarvest = async () => {
+    const quantityKg = Number(harvestForm.quantityKg);
+    if (!harvestForm.cropName.trim() || !(quantityKg > 0)) return;
+    setSavingHarvest(true);
+    try {
+      await api.post("/api/dashboard/harvests", {
+        cropName: harvestForm.cropName,
+        category: harvestForm.category,
+        quantityKg,
+        harvestedAt: harvestForm.harvestedAt || null,
+      });
+      setHarvestOpen(false);
+      setHarvestForm(EMPTY_HARVEST);
+      load(); // refresh production donut + KPI deltas
+    } catch {
+      alert("Could not record the harvest.");
+    } finally {
+      setSavingHarvest(false);
+    }
+  };
+
+  const setHarvest = (key) => (event) => setHarvestForm((prev) => ({ ...prev, [key]: event.target.value }));
 
   useEffect(() => {
     setLoading(true);
@@ -248,6 +293,19 @@ export default function FarmerHome() {
             <span className="d2-new-badge">New</span>
           </div>
           <div className="d2-insights">
+            {aiParagraph?.text && (
+              <div className="d2-insight d2-insight-hero">
+                <span className="d2-insight-icon">
+                  <Icon name="sparkles" size={15} color="#16A34A" />
+                </span>
+                <div>
+                  <div className="d2-insight-title">
+                    AI Summary {aiParagraph.source === "ai" && <span className="d2-tag-live">Live AI</span>}
+                  </div>
+                  <div className="d2-insight-text">{aiParagraph.text}</div>
+                </div>
+              </div>
+            )}
             {aiInsights.map((insight, index) => (
               <div className="d2-insight" key={index}>
                 <span className="d2-insight-icon">
@@ -412,6 +470,9 @@ export default function FarmerHome() {
           <button className="d2-quick-btn" onClick={() => navigate("/farmer/crops")}>
             <span className="d2-quick-icon"><Icon name="flower-outline" size={18} /></span> Add Crop
           </button>
+          <button className="d2-quick-btn" onClick={() => setHarvestOpen(true)}>
+            <span className="d2-quick-icon"><Icon name="basket-outline" size={18} /></span> Record Harvest
+          </button>
           <button className="d2-quick-btn" onClick={() => navigate("/farmer/orders")}>
             <span className="d2-quick-icon"><Icon name="receipt-outline" size={18} /></span> View Orders
           </button>
@@ -423,6 +484,44 @@ export default function FarmerHome() {
           </button>
         </div>
       </div>
+
+      {/* ── Record harvest modal ── */}
+      <Modal open={harvestOpen} onClose={() => { setHarvestOpen(false); setHarvestForm(EMPTY_HARVEST); }} maxWidth={460}>
+        <div className="d2-form-modal">
+          <h3 className="create-title">Record Harvest 🌾</h3>
+          <p className="create-sub">Add a harvest to update your Farm Performance breakdown.</p>
+          <label className="d2-field">
+            <span>Crop name</span>
+            <input value={harvestForm.cropName} onChange={setHarvest("cropName")} placeholder="e.g. Tomatoes" />
+          </label>
+          <div className="d2-form-row">
+            <label className="d2-field">
+              <span>Category</span>
+              <select value={harvestForm.category} onChange={setHarvest("category")}>
+                {["Vegetables", "Grains", "Fruits", "Pulses", "Spices", "Other"].map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </label>
+            <label className="d2-field">
+              <span>Quantity (kg)</span>
+              <input type="number" min="1" value={harvestForm.quantityKg} onChange={setHarvest("quantityKg")} placeholder="e.g. 250" />
+            </label>
+          </div>
+          <label className="d2-field">
+            <span>Harvest date (optional)</span>
+            <input type="date" value={harvestForm.harvestedAt} onChange={setHarvest("harvestedAt")} />
+          </label>
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <button className="btn btn-ghost" onClick={() => { setHarvestOpen(false); setHarvestForm(EMPTY_HARVEST); }}>Cancel</button>
+            <button
+              className="btn btn-primary"
+              onClick={saveHarvest}
+              disabled={savingHarvest || !harvestForm.cropName.trim() || !(Number(harvestForm.quantityKg) > 0)}
+            >
+              {savingHarvest ? "Recording…" : "Record Harvest"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
