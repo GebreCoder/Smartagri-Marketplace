@@ -16,14 +16,14 @@ import BuyerFavorites from "./pages/buyer/Favorites.jsx";
 import BuyerProductDetails from "./pages/buyer/ProductDetails.jsx";
 import BuyerCart from "./pages/buyer/Cart.jsx";
 import BuyerOrders from "./pages/buyer/Orders.jsx";
-import BuyerChatList from "./pages/buyer/ChatList.jsx";
+import Messenger from "./pages/Messenger.jsx";
 
 import FarmerLayout from "./pages/farmer/FarmerLayout.jsx";
 import FarmerHome from "./pages/farmer/Home.jsx";
 import FarmerProducts from "./pages/farmer/Products.jsx";
 import FarmerCreate from "./pages/farmer/Create.jsx";
 import FarmerOrders from "./pages/farmer/Orders.jsx";
-import FarmerChatbox from "./pages/farmer/Chatbox.jsx";
+
 import FarmerCrops from "./pages/farmer/Crops.jsx";
 import FarmerCalendar from "./pages/farmer/Calendar.jsx";
 import FarmerAnalytics from "./pages/farmer/Analytics.jsx";
@@ -98,7 +98,7 @@ export default function App() {
         <Route path="product-details/:productId" element={<BuyerProductDetails />} />
         <Route path="cart" element={<BuyerCart />} />
         <Route path="orders" element={<BuyerOrders />} />
-        <Route path="chat" element={<BuyerChatList />} />
+        <Route path="chat" element={<Messenger />} />
       </Route>
 
       {/* Farmer */}
@@ -114,7 +114,7 @@ export default function App() {
         <Route path="products" element={<FarmerProducts />} />
         <Route path="create" element={<FarmerCreate />} />
         <Route path="orders" element={<FarmerOrders />} />
-        <Route path="chat" element={<FarmerChatbox />} />
+        <Route path="chat" element={<Messenger />} />
         <Route path="crops" element={<FarmerCrops />} />
         <Route path="calendar" element={<FarmerCalendar />} />
         <Route path="analytics" element={<FarmerAnalytics />} />

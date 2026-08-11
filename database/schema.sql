@@ -91,19 +91,38 @@ CREATE INDEX IF NOT EXISTS idx_orders_product ON orders(product_id);
 --   'Issue reported: …'  → counted as a report/dispute
 --   'Buyer confirmed delivery' → delivery confirmation event
 -- ------------------------------------------------------------
+-- DIRECT CONVERSATIONS (Telegram/Facebook-style 1:1 chat between any two users)
+CREATE TABLE IF NOT EXISTS conversations (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_a          uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_b          uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  last_message_at timestamptz,
+  CONSTRAINT conversations_distinct CHECK (user_a <> user_b)
+);
+
+-- Canonical ordering: user_a < user_b so a pair has exactly one row.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_conversations_pair ON conversations(
+  LEAST(user_a, user_b), GREATEST(user_a, user_b)
+);
+
 CREATE TABLE IF NOT EXISTS messages (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id    uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  sender_id   uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  receiver_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  message     text NOT NULL,
-  created_at  timestamptz NOT NULL DEFAULT now(),
-  is_read     boolean NOT NULL DEFAULT false
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id        uuid REFERENCES orders(id) ON DELETE CASCADE,
+  conversation_id uuid REFERENCES conversations(id) ON DELETE CASCADE,
+  sender_id       uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  receiver_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  message         text NOT NULL,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  is_read         boolean NOT NULL DEFAULT false,
+  CONSTRAINT messages_target_check CHECK ((order_id IS NOT NULL) <> (conversation_id IS NOT NULL))
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_order ON messages(order_id);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_last ON conversations(last_message_at DESC);
 
 -- ------------------------------------------------------------
 -- PAYMENTS (provider payment records tied to a batch of accepted orders)

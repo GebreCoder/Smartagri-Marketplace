@@ -39,6 +39,15 @@ export const initSocket = (httpServer) => {
     socket.on("leave-order", (orderId) => {
       if (orderId) socket.leave(`order:${String(orderId)}`);
     });
+
+    // Messenger joins a direct-conversation room.
+    socket.on("join-conversation", (conversationId) => {
+      if (conversationId) socket.join(`conversation:${String(conversationId)}`);
+    });
+
+    socket.on("leave-conversation", (conversationId) => {
+      if (conversationId) socket.leave(`conversation:${String(conversationId)}`);
+    });
   });
 
   ioRef = io;
@@ -72,11 +81,21 @@ export const emitOrderChanged = (orderId, buyerId, farmerId) => {
 };
 
 /**
- * Notify everyone in a chat (order room + both participants) of a new message.
+ * Notify everyone in an order chat (order room + both participants) of a new message.
  */
 export const emitMessageNew = ({ orderId, senderId, receiverId }) => {
   const payload = { orderId };
   emitToOrder(orderId, "message:new", payload);
+  emitToUser(senderId, "message:new", payload);
+  emitToUser(receiverId, "message:new", payload);
+};
+
+/**
+ * Notify both participants + the conversation room of a new direct message.
+ */
+export const emitDirectMessage = ({ conversationId, senderId, receiverId }) => {
+  const payload = { conversationId };
+  if (ioRef && conversationId) ioRef.to(`conversation:${String(conversationId)}`).emit("message:new", payload);
   emitToUser(senderId, "message:new", payload);
   emitToUser(receiverId, "message:new", payload);
 };

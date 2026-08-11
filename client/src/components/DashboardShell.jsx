@@ -11,68 +11,46 @@ const getInitials = (name) => {
   return value.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 };
 
+// Each item maps to exactly one real destination and is matched exactly
+// (end: true) so selecting one sidebar entry never highlights its neighbors.
 const FARMER_NAV = [
   { section: "MAIN", items: [
     { to: "/farmer", end: true, label: "Dashboard", icon: "grid-outline" },
-    { to: "/farmer/products", label: "My Products", icon: "cube-outline" },
-    { to: "/farmer/create", label: "Add Product", icon: "add-circle-outline" },
-    { to: "/farmer/orders", label: "Orders", icon: "receipt-outline" },
-    { to: "/farmer/orders", label: "Customers", icon: "people-outline" },
-    { to: "/farmer/products", label: "Inventory", icon: "layers-outline" },
-    { to: "/farmer/analytics", label: "Sales & Revenue", icon: "stats-chart-outline" },
-    { to: "/farmer/analytics", label: "Analytics", icon: "bar-chart-outline" },
+    { to: "/farmer/products", end: true, label: "My Products", icon: "cube-outline" },
+    { to: "/farmer/create", end: true, label: "Add Product", icon: "add-circle-outline" },
+    { to: "/farmer/orders", end: true, label: "Orders", icon: "receipt-outline" },
+    { to: "/farmer/analytics", end: true, label: "Analytics", icon: "bar-chart-outline" },
   ]},
   { section: "FARM MANAGEMENT", items: [
-    { to: "/farmer/crops", label: "My Farm", icon: "leaf-outline" },
-    { to: "/farmer/crops", label: "Crops", icon: "flower-outline" },
-    { to: "/farmer/calendar", label: "Farm Activities", icon: "calendar-outline" },
-    { to: "/farmer/crops", label: "Harvests", icon: "basket-outline" },
-    { to: "/farmer/calendar", label: "Farm Calendar", icon: "calendar-outline" },
+    { to: "/farmer/crops", end: true, label: "Crops", icon: "flower-outline" },
+    { to: "/farmer/calendar", end: true, label: "Farm Calendar", icon: "calendar-outline" },
   ]},
   { section: "SMART AGRICULTURE", items: [
-    { to: "/farmer", label: "Weather", icon: "partly-sunny-outline" },
-    { to: "/farmer/crops", label: "Crop Health", icon: "heart-outline" },
-    { to: "/farmer", label: "AI Recommendations", icon: "sparkles-outline" },
-    { to: "/farmer/market-prices", label: "Market Prices", icon: "pricetag-outline" },
+    { to: "/farmer/market-prices", end: true, label: "Market Prices", icon: "pricetag-outline" },
   ]},
   { section: "COMMUNICATION", items: [
-    { to: "/farmer/chat", label: "Messages", icon: "chatbubbles-outline", badgeKey: "messages" },
-    { to: "/farmer/orders", label: "Notifications", icon: "notifications-outline", badgeKey: "notifications" },
+    { to: "/farmer/chat", end: true, label: "Messages", icon: "chatbubbles-outline", badgeKey: "messages" },
   ]},
   { section: "ACCOUNT", items: [
-    { to: "/profile", label: "Settings", icon: "settings-outline" },
-    { to: "/", label: "Help & Support", icon: "help-circle-outline" },
+    { to: "/profile", end: true, label: "Settings", icon: "settings-outline" },
   ]},
 ];
 
 const BUYER_NAV = [
   { section: "MAIN", items: [
     { to: "/buyer", end: true, label: "Dashboard", icon: "grid-outline" },
-    { to: "/buyer/marketplace", label: "Marketplace", icon: "storefront-outline" },
-    { to: "/buyer/marketplace", label: "Browse Products", icon: "search-outline" },
-    { to: "/buyer/marketplace", label: "Categories", icon: "pricetag-outline" },
-    { to: "/buyer/orders", label: "My Orders", icon: "receipt-outline" },
-    { to: "/buyer/favorites", label: "Favorites", icon: "heart-outline" },
+    { to: "/buyer/marketplace", end: true, label: "Marketplace", icon: "storefront-outline" },
+    { to: "/buyer/orders", end: true, label: "My Orders", icon: "receipt-outline" },
+    { to: "/buyer/favorites", end: true, label: "Favorites", icon: "heart-outline" },
   ]},
   { section: "SHOPPING", items: [
-    { to: "/buyer/cart", label: "Cart", icon: "cart-outline", badgeKey: "cart" },
-    { to: "/buyer/favorites", label: "Saved Items", icon: "bookmark-outline" },
-    { to: "/buyer/marketplace", label: "Recently Viewed", icon: "time-outline" },
-    { to: "/buyer", label: "Deals & Offers", icon: "pricetag-outline" },
-  ]},
-  { section: "PURCHASING", items: [
-    { to: "/buyer/orders", label: "Purchase History", icon: "document-text-outline" },
-    { to: "/buyer/orders", label: "Invoices", icon: "document-text-outline" },
-    { to: "/buyer/orders", label: "Payments", icon: "card-outline" },
-    { to: "/profile", label: "Addresses", icon: "location-outline" },
+    { to: "/buyer/cart", end: true, label: "Cart", icon: "cart-outline", badgeKey: "cart" },
   ]},
   { section: "COMMUNICATION", items: [
-    { to: "/buyer/chat", label: "Messages", icon: "chatbubbles-outline", badgeKey: "messages" },
-    { to: "/buyer/orders", label: "Notifications", icon: "notifications-outline", badgeKey: "notifications" },
+    { to: "/buyer/chat", end: true, label: "Messages", icon: "chatbubbles-outline", badgeKey: "messages" },
   ]},
   { section: "ACCOUNT", items: [
-    { to: "/profile", label: "Settings", icon: "settings-outline" },
-    { to: "/", label: "Help & Support", icon: "help-circle-outline" },
+    { to: "/profile", end: true, label: "Settings", icon: "settings-outline" },
   ]},
 ];
 
@@ -153,12 +131,13 @@ export default function DashboardShell({ role = "farmer" }) {
         const { orders } = await api.get("/api/orders/farmer");
         setNotificationsCount(orders.filter((o) => String(o.rawStatus).toLowerCase() === "pending").length);
       }
-      const { conversations } = await api.get(`/api/chat/conversations?role=${role}`);
-      setMessagesCount(conversations.filter((c) => Number(c.unread || 0) > 0).length || Math.min(conversations.length, 5));
+      const { conversations } = await api.get("/api/chat/direct");
+      const unreadCount = conversations.filter((c) => Number(c.unread || 0) > 0).length;
+      setMessagesCount(unreadCount || Math.min(conversations.length, 5));
     } catch {
       // badges stay at zero when endpoints fail
     }
-  }, [isBuyer, role]);
+  }, [isBuyer]);
 
   const loadProfile = useCallback(async () => {
     try {
