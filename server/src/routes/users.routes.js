@@ -9,7 +9,7 @@ router.use(requireAuth);
 
 // ── Update profile fields ──────────────────────────────────────────
 // PATCH /api/users/me
-// body (all optional): { biography?, fullName?, phoneNumber?, location?, businessName? }
+// body (all optional): { biography?, fullName?, phoneNumber?, location?, businessName?, readReceipts? }
 router.patch(
   "/me",
   asyncHandler(async (req, res) => {
@@ -18,6 +18,7 @@ router.patch(
     const phoneNumber = normalizeText(req.body.phoneNumber);
     const location = normalizeText(req.body.location);
     const businessName = normalizeText(req.body.businessName);
+    const readReceipts = req.body.readReceipts;
 
     const fields = [];
     const values = [];
@@ -42,6 +43,10 @@ router.patch(
     if (Object.prototype.hasOwnProperty.call(req.body, "businessName")) {
       fields.push(`business_name = $${fields.length + 1}`);
       values.push(businessName);
+    }
+    if (typeof readReceipts === "boolean") {
+      fields.push(`read_receipts = $${fields.length + 1}`);
+      values.push(readReceipts);
     }
 
     if (!fields.length) {

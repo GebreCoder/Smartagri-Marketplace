@@ -59,6 +59,18 @@ export default function ProductDetails() {
     }
   };
 
+  const handleMessageFarmer = async () => {
+    setBusy(true);
+    try {
+      const { conversation } = await api.post("/api/chat/direct", { userId: product.farmer_id });
+      navigate(`/buyer/chat?conversation=${conversation.id}`);
+    } catch (err) {
+      alert(err.message || "Could not open the chat.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div>
@@ -163,12 +175,17 @@ export default function ProductDetails() {
                 <span>{initials}</span>
               )}
             </div>
-            <div>
+            <div className="pd-farmer-copy">
               <div className="pd-farmer-name">{product.farmer_name}</div>
               <div className="pd-farmer-meta">
                 {product.farmer_location || product.location || "Ethiopia"} · Verified farmer
               </div>
             </div>
+            {!isOwnProduct && (
+              <button className="pd-message-btn" onClick={handleMessageFarmer} disabled={busy}>
+                <Icon name="chatbubble-ellipses-outline" size={15} /> Message
+              </button>
+            )}
           </div>
         </div>
       </div>

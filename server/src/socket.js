@@ -4,6 +4,9 @@ import { config } from "./config.js";
 
 let ioRef = null;
 
+// userId → Set of active socket ids (online presence tracking).
+const onlineSockets = new Map();
+
 /**
  * Attach Socket.IO to the HTTP server. Must be called once from index.js.
  */
@@ -29,7 +32,23 @@ export const initSocket = (httpServer) => {
     const userId = socket.user?.id;
     if (userId) {
       socket.join(`user:${userId}`);
+      if (!onlineSockets.has(userId)) onlineSockets.set(userId, new Set());
+      onlineSockets.get(userId).add(socket.id);
+      // Let everyone know this user just came online.
+      io.emit("presence:update", { userId, online: true });
     }
+
+    socket.on("disconnect", () => {
+      if (!userId) return;
+      const sockets = onlineSockets.get(userId);
+      if (sockets) {
+        sockets.delete(socket.id);
+        if (sockets.size === 0) {
+          onlineSockets.delete(userId);
+          io.emit("presence:update", { userId, online: false });
+        }
+      }
+    });
 
     // ChatPage joins its order room to receive message events live.
     socket.on("join-order", (orderId) => {
@@ -48,6 +67,25 @@ export const initSocket = (httpServer) => {
     socket.on("leave-conversation", (conversationId) => {
       if (conversationId) socket.leave(`conversation:${String(conversationId)}`);
     });
+
+    // Typing indicators — relay to everyone in the conversation room.
+    socket.on("typing", (conversationId) => {
+      if (conversationId) {
+        socket.to(`conversation:${String(conversationId)}`).emit("typing:start", {
+          conversationId,
+          userId,
+        });
+      }
+    });
+
+    socket.on("typing:stop", (conversationId) => {
+      if (conversationId) {
+        socket.to(`conversation:${String(conversationId)}`).emit("typing:stop", {
+          conversationId,
+          userId,
+        });
+      }
+    });
   });
 
   ioRef = io;
@@ -55,6 +93,9 @@ export const initSocket = (httpServer) => {
 };
 
 export const getIo = () => ioRef;
+
+/** Snapshot of currently-online user ids. */
+export const getOnlineUserIds = () => new Set(onlineSockets.keys());
 
 /** Emit to every connected client (used for marketplace product changes). */
 export const emitGlobal = (event, data) => {
@@ -99,3 +140,7 @@ export const emitDirectMessage = ({ conversationId, senderId, receiverId }) => {
   emitToUser(senderId, "message:new", payload);
   emitToUser(receiverId, "message:new", payload);
 };
+
+/** True if the user currently has at least one connected socket. */
+export const isUserOnline = (userId) =>
+  userId ? onlineSockets.has(String(userId)) : false;

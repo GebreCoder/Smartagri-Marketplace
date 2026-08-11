@@ -2,7 +2,7 @@ import { Router } from "express";
 import { query } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/error.js";
-import { emitDirectMessage, emitMessageNew } from "../socket.js";
+import { emitDirectMessage, emitMessageNew, isUserOnline } from "../socket.js";
 import {
   capitalize,
   getProfileName,
@@ -282,8 +282,9 @@ router.post(
 // DIRECT MESSAGING (Telegram/Facebook-style 1:1 chat between any users)
 // ════════════════════════════════════════════════════════════════
 
+const DIRECT_USER_COLUMNS = `id, full_name, business_name, role, location, profile_image_url, biography`;
 const DIRECT_USER_SELECT = `
-  SELECT id, full_name, business_name, role, location, profile_image_url, biography
+  SELECT ${DIRECT_USER_COLUMNS}
   FROM users
 `;
 
@@ -294,6 +295,7 @@ const shapeDirectUser = (row) => ({
   location: row.location || "",
   biography: row.biography || "",
   image_url: resolveImageUrl(row.profile_image_url),
+  online: isUserOnline(row.id),
 });
 
 // Normalize a pair so user_a < user_b for the canonical unique row.
@@ -379,6 +381,7 @@ router.get(
           role: normalizeText(row.partner_role).toLowerCase().split("_")[0] || "user",
           location: row.partner_location || "",
           image_url: resolveImageUrl(row.partner_image),
+          online: isUserOnline(row.partner_id),
         },
         lastMessage: row.last_message || "",
         lastMessageAt: row.last_message_at || row.created_at,
@@ -440,10 +443,14 @@ router.get(
     }
 
     const partnerId = String(conversation.user_a) === selfId ? conversation.user_b : conversation.user_a;
-    const { rows: partnerRows } = await query(`${DIRECT_USER_SELECT} WHERE id = $1`, [partnerId]);
+    const { rows: partnerRows } = await query(
+      `SELECT ${DIRECT_USER_COLUMNS}, read_receipts FROM users WHERE id = $1`,
+      [partnerId]
+    );
     const partner = partnerRows[0] || null;
 
-    // Mark incoming messages as read.
+    // Always mark incoming messages as read (clears the receiver's unread badge).
+    // Read-receipt privacy is handled below when shaping the response.
     await query(
       `UPDATE messages SET is_read = true
        WHERE conversation_id = $1 AND receiver_id = $2 AND is_read = false`,
@@ -458,6 +465,10 @@ router.get(
       [conversationId]
     );
 
+    // If the partner disabled read receipts, hide blue ticks from senders:
+    // the sender's own outgoing messages are reported as unread.
+    const partnerSendsReceipts = partner?.read_receipts !== false;
+
     return res.json({
       conversation: { id: conversation.id },
       partner: partner ? shapeDirectUser(partner) : null,
@@ -468,7 +479,8 @@ router.get(
         receiver_id: m.receiver_id,
         message: m.message,
         created_at: m.created_at,
-        is_read: m.is_read,
+        // Outgoing messages show a read tick only if the partner sends receipts.
+        is_read: String(m.sender_id) === selfId && !partnerSendsReceipts ? false : m.is_read,
       })),
     });
   })

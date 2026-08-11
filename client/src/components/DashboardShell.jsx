@@ -46,6 +46,9 @@ const BUYER_NAV = [
   { section: "SHOPPING", items: [
     { to: "/buyer/cart", end: true, label: "Cart", icon: "cart-outline", badgeKey: "cart" },
   ]},
+  { section: "SMART AGRICULTURE", items: [
+    { to: "/buyer/market-prices", end: true, label: "Market Prices", icon: "pricetag-outline" },
+  ]},
   { section: "COMMUNICATION", items: [
     { to: "/buyer/chat", end: true, label: "Messages", icon: "chatbubbles-outline", badgeKey: "messages" },
   ]},

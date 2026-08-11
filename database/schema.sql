@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
   password          text NOT NULL,
   profile_image_url text,
   biography         text,
+  read_receipts     boolean NOT NULL DEFAULT true,
   CONSTRAINT users_role_check CHECK (role IN (
     'admin',
     'farmer', 'farmer_inactive',

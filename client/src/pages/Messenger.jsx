@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Icon from "../Icon.jsx";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { getSocket } from "../socket.js";
+
+const EMOJI = [
+  "😀", "😂", "😊", "😍", "🥰", "😎", "🤔", "😅", "😭", "😡",
+  "👍", "👎", "🙏", "👏", "💪", "🤝", "🌾", "🌱", "🌽", "🥕",
+  "🍅", "🥔", "🧅", "🍎", "🥑", "🌻", "☀️", "🌧️", "☁️", "💧",
+  "🚜", "🐄", "🐔", "🐑", "💰", "📦", "🛒", "❤️", "🎉", "✅",
+];
 
 const getInitials = (name) =>
   String(name || "?")
@@ -36,8 +43,24 @@ const fmtDay = (value) => {
   return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
 };
 
+/** Highlight the query inside a message with <mark>. */
+const Highlight = ({ text, query }) => {
+  if (!query) return text;
+  const lower = String(text).toLowerCase();
+  const idx = lower.indexOf(query.toLowerCase());
+  if (idx === -1) return text;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="msg-match">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  );
+};
+
 export default function Messenger() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const selfId = String(user?.id || "");
 
@@ -51,8 +74,20 @@ export default function Messenger() {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [mobileThread, setMobileThread] = useState(false);
+  const [onlineIds, setOnlineIds] = useState(() => new Set());
+  const [typingUserId, setTypingUserId] = useState(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [readReceipts, setReadReceipts] = useState(() => (user?.read_receipts !== false));
+  const [threadSearchOpen, setThreadSearchOpen] = useState(false);
+  const [threadSearch, setThreadSearch] = useState("");
+  const [searchIndex, setSearchIndex] = useState(0);
+
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const menuRef = useRef(null);
+  const typingTimerRef = useRef(null);
+  const lastTypingRef = useRef(0);
 
   const myRole = String(user?.role || "").toLowerCase().split("_")[0];
   const contactRole = myRole === "farmer" ? "buyer" : myRole === "buyer" ? "farmer" : "all";
@@ -90,7 +125,31 @@ export default function Messenger() {
     Promise.all([loadConversations(), loadContacts()]).finally(() => setLoading(false));
   }, [loadConversations, loadContacts]);
 
+  // Deep-link support: ?conversation=<id> opens a chat, ?userId=<id> starts one.
   useEffect(() => {
+    const target = searchParams.get("conversation");
+    const targetUser = searchParams.get("userId");
+    (async () => {
+      if (target) {
+        setActiveConvId(target);
+        setMobileThread(true);
+      } else if (targetUser) {
+        try {
+          const { conversation } = await api.post("/api/chat/direct", { userId: targetUser });
+          setActiveConvId(conversation.id);
+          setMobileThread(true);
+          await loadConversations();
+        } catch (err) {
+          alert(err.message || "Could not start the conversation.");
+        }
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    setTypingUserId(null);
+    setEmojiOpen(false);
     if (!activeConvId) {
       setThread(null);
       return;
@@ -113,6 +172,60 @@ export default function Messenger() {
     };
   }, [activeConvId, loadConversations, loadThread]);
 
+  // Online presence — live updates from the socket, seeded from server snapshots.
+  useEffect(() => {
+    const socket = getSocket();
+    const onPresence = ({ userId, online }) => {
+      setOnlineIds((prev) => {
+        const next = new Set(prev);
+        if (online) next.add(String(userId));
+        else next.delete(String(userId));
+        return next;
+      });
+    };
+    socket.on("presence:update", onPresence);
+    return () => {
+      socket.off("presence:update", onPresence);
+    };
+  }, []);
+
+  // Merge the server-provided online snapshots into the live set.
+  useEffect(() => {
+    setOnlineIds((prev) => {
+      const next = new Set(prev);
+      conversations.forEach((c) => {
+        if (c.partner?.online) next.add(String(c.partner.id));
+        else next.delete(String(c.partner.id));
+      });
+      contacts.forEach((c) => {
+        if (c.online) next.add(String(c.id));
+        else next.delete(String(c.id));
+      });
+      return next;
+    });
+  }, [conversations, contacts]);
+
+  // Typing indicators for the active conversation.
+  useEffect(() => {
+    const socket = getSocket();
+    const onStart = (payload) => {
+      if (String(payload.conversationId) === String(activeConvId)) {
+        setTypingUserId(String(payload.userId));
+      }
+    };
+    const onStop = (payload) => {
+      if (String(payload.conversationId) === String(activeConvId)) {
+        setTypingUserId(null);
+      }
+    };
+    socket.on("typing:start", onStart);
+    socket.on("typing:stop", onStop);
+    return () => {
+      socket.off("typing:start", onStart);
+      socket.off("typing:stop", onStop);
+    };
+  }, [activeConvId]);
+
   // Join/leave the active conversation room for live delivery.
   useEffect(() => {
     if (!activeConvId) return undefined;
@@ -127,6 +240,28 @@ export default function Messenger() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [thread?.messages?.length]);
+
+  // Close the thread menu or emoji panel on outside click / Escape.
+  const emojiWrapRef = useRef(null);
+  useEffect(() => {
+    if (!menuOpen && !emojiOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) setMenuOpen(false);
+      if (emojiWrapRef.current && !emojiWrapRef.current.contains(event.target)) setEmojiOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        setEmojiOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen, emojiOpen]);
 
   const startConversation = async (contact) => {
     try {
@@ -146,19 +281,51 @@ export default function Messenger() {
     setMobileThread(true);
   };
 
+  const emitTyping = () => {
+    if (!activeConvId) return;
+    const socket = getSocket();
+    const now = Date.now();
+    if (now - lastTypingRef.current > 2500) {
+      lastTypingRef.current = now;
+      socket.emit("typing", activeConvId);
+    }
+    clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      socket.emit("typing:stop", activeConvId);
+    }, 3000);
+  };
+
+  const stopTyping = () => {
+    clearTimeout(typingTimerRef.current);
+    if (activeConvId) getSocket().emit("typing:stop", activeConvId);
+  };
+
   const sendMessage = async (e) => {
     e.preventDefault();
     const text = message.trim();
     if (!text || !activeConvId || sending) return;
     setSending(true);
     try {
+      stopTyping();
       await api.post(`/api/chat/direct/${activeConvId}/messages`, { message: text });
       setMessage("");
+      setEmojiOpen(false);
       await Promise.all([loadConversations(), loadThread(activeConvId)]);
     } catch (err) {
       alert(err.message || "Could not send the message.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const toggleReadReceipts = async () => {
+    const next = !readReceipts;
+    setReadReceipts(next);
+    setMenuOpen(false);
+    try {
+      await api.patch("/api/users/me", { readReceipts: next });
+    } catch {
+      setReadReceipts(!next); // revert on failure
     }
   };
 
@@ -181,7 +348,30 @@ export default function Messenger() {
 
   const activePartner = thread?.partner || conversations.find((c) => c.id === activeConvId)?.partner || null;
   const messages = thread?.messages || [];
+
+  // Message search within the open thread.
+  const searchMatches = useMemo(() => {
+    const q = threadSearch.trim().toLowerCase();
+    if (!q) return [];
+    return messages.map((m, i) => ({ m, i })).filter(({ m }) => m.message.toLowerCase().includes(q));
+  }, [messages, threadSearch]);
+
+  // Scroll to the current search match (declared after searchMatches).
+  useEffect(() => {
+    if (!searchMatches.length) return;
+    const safeIndex = Math.min(searchIndex, searchMatches.length - 1);
+    const el = document.getElementById(`msg-${searchMatches[safeIndex]?.m.id}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [searchIndex, searchMatches]);
+
+  const stepSearch = (delta) => {
+    if (!searchMatches.length) return;
+    setSearchIndex((prev) => (prev + delta + searchMatches.length) % searchMatches.length);
+  };
+
   const backToList = () => setMobileThread(false);
+  const isPartnerOnline = activePartner ? onlineIds.has(String(activePartner.id)) : false;
+  const isTyping = typingUserId && String(typingUserId) !== selfId && String(typingUserId) === String(activePartner?.id);
 
   return (
     <div className="msg-app">
@@ -225,6 +415,7 @@ export default function Messenger() {
                     ) : (
                       <span className="msg-avatar-init">{getInitials(conv.partner?.full_name)}</span>
                     )}
+                    {onlineIds.has(String(conv.partner?.id)) && <span className="msg-online-dot" />}
                   </span>
                   <span className="msg-item-body">
                     <span className="msg-item-top">
@@ -254,6 +445,7 @@ export default function Messenger() {
                   ) : (
                     <span className="msg-avatar-init">{getInitials(contact.full_name)}</span>
                   )}
+                  {onlineIds.has(String(contact.id)) && <span className="msg-online-dot" />}
                 </span>
                 <span className="msg-item-body">
                   <span className="msg-item-top">
@@ -292,18 +484,72 @@ export default function Messenger() {
                 ) : (
                   <span className="msg-avatar-init">{getInitials(activePartner.full_name)}</span>
                 )}
+                {isPartnerOnline && <span className="msg-online-dot" />}
               </span>
               <div className="grow">
                 <div className="msg-thread-name">{activePartner.full_name}</div>
                 <div className="msg-thread-sub">
-                  <span className={`msg-role-dot ${activePartner.role}`} />
-                  {activePartner.role === "farmer" ? "Farmer" : "Buyer"} · {activePartner.location || "Ethiopia"}
+                  {isTyping ? (
+                    <span className="msg-typing">typing<span className="msg-typing-dots">…</span></span>
+                  ) : (
+                    <>
+                      <span className={`msg-role-dot ${activePartner.role}${isPartnerOnline ? " online" : ""}`} />
+                      {isPartnerOnline ? "Online" : `${activePartner.role === "farmer" ? "Farmer" : "Buyer"} · ${activePartner.location || "Ethiopia"}`}
+                    </>
+                  )}
                 </div>
               </div>
-              <button className="msg-thread-action" onClick={() => navigate("/profile")} aria-label="View profile">
-                <Icon name="ellipsis-vertical-outline" size={18} />
+              <button
+                className="msg-thread-action"
+                onClick={() => setThreadSearchOpen((v) => !v)}
+                aria-label="Search in conversation"
+                title="Search in conversation"
+              >
+                <Icon name="search-outline" size={18} />
               </button>
+              <div className="msg-thread-menu-wrap" ref={menuRef}>
+                <button className="msg-thread-action" onClick={() => setMenuOpen((v) => !v)} aria-label="Conversation options">
+                  <Icon name="ellipsis-vertical-outline" size={18} />
+                </button>
+                {menuOpen && (
+                  <div className="msg-thread-menu">
+                    <button onClick={toggleReadReceipts}>
+                      <Icon
+                        name={readReceipts ? "checkmark-circle-outline" : "ellipsis-horizontal-outline"}
+                        size={15}
+                        color={readReceipts ? "#16A34A" : "#94A3B8"}
+                      />
+                      Read receipts: {readReceipts ? "On" : "Off"}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {threadSearchOpen && (
+              <div className="msg-search-bar">
+                <Icon name="search-outline" size={14} color="#94A3B8" />
+                <input
+                  value={threadSearch}
+                  onChange={(e) => { setThreadSearch(e.target.value); setSearchIndex(0); }}
+                  placeholder="Search in conversation…"
+                  aria-label="Search in conversation"
+                  autoFocus
+                />
+                {searchMatches.length > 0 && (
+                  <span className="msg-search-count">{searchIndex + 1}/{searchMatches.length}</span>
+                )}
+                <button onClick={() => stepSearch(-1)} aria-label="Previous match" disabled={!searchMatches.length}>
+                  <Icon name="chevron-up-outline" size={14} />
+                </button>
+                <button onClick={() => stepSearch(1)} aria-label="Next match" disabled={!searchMatches.length}>
+                  <Icon name="chevron-down-outline" size={14} />
+                </button>
+                <button onClick={() => { setThreadSearchOpen(false); setThreadSearch(""); }} aria-label="Close search">
+                  <Icon name="close-outline" size={15} />
+                </button>
+              </div>
+            )}
 
             <div className="msg-thread-body">
               {messages.map((msg, index) => {
@@ -311,11 +557,13 @@ export default function Messenger() {
                 const prev = messages[index - 1];
                 const showDay = !prev || fmtDay(prev.created_at) !== fmtDay(msg.created_at);
                 return (
-                  <div key={msg.id}>
+                  <div key={msg.id} id={`msg-${msg.id}`}>
                     {showDay && <div className="msg-day-divider">{fmtDay(msg.created_at)}</div>}
                     <div className={`msg-bubble-wrap ${isOut ? "out" : "in"}`}>
                       <div className={`msg-bubble${isOut ? " out" : ""}`}>
-                        <div className="msg-bubble-text">{msg.message}</div>
+                        <div className="msg-bubble-text">
+                          <Highlight text={msg.message} query={threadSearchOpen ? threadSearch : ""} />
+                        </div>
                         <div className="msg-bubble-meta">
                           {fmtTime(msg.created_at)}
                           {isOut && (
@@ -335,12 +583,38 @@ export default function Messenger() {
             </div>
 
             <form className="msg-composer" onSubmit={sendMessage}>
+              <div className="msg-emoji-wrap" ref={emojiWrapRef}>
+                <button
+                  type="button"
+                  className={`msg-emoji-btn${emojiOpen ? " active" : ""}`}
+                  onClick={() => setEmojiOpen((v) => !v)}
+                  aria-label="Emoji"
+                >
+                  <Icon name="happy-outline" size={19} />
+                </button>
+                {emojiOpen && (
+                  <div className="msg-emoji-panel">
+                    {EMOJI.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          setMessage((m) => m + emoji);
+                          inputRef.current?.focus();
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div className="msg-input-wrap">
                 <input
                   ref={inputRef}
                   className="msg-input"
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  onChange={(e) => { setMessage(e.target.value); emitTyping(); }}
                   placeholder="Type a message…"
                   aria-label="Message"
                 />

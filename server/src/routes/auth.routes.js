@@ -28,6 +28,7 @@ const toSafeUser = (row) => ({
   location: row.location,
   profile_image_url: row.profile_image_url,
   biography: row.biography,
+  read_receipts: row.read_receipts !== false,
   created_at: row.created_at,
 });
 
