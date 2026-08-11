@@ -146,13 +146,45 @@ npm start              # Express serves the built client + API on :5000
 | PATCH | `/api/orders/:id/status` | farmer | Accept / reject |
 | POST | `/api/orders/:id/confirm-delivery` | buyer | Confirm delivery |
 | POST | `/api/orders/:id/report-issue` | buyer | Report an issue |
-| GET | `/api/payments/status` | buyer | Paid orders & payment history |
+| GET | `/api/payments/status` | buyer | Paid orders, payment history & whether Chapa is enabled |
 | POST | `/api/payments/from-orders` | buyer | Simulated batch payment for accepted orders |
+| POST | `/api/payments/chapa/initialize` | buyer | Start a real Chapa hosted checkout (returns `checkout_url`) |
+| POST | `/api/payments/chapa/verify` | buyer | Confirm a Chapa payment server-side |
+| POST | `/api/payments/chapa/webhook` | public | Chapa webhook (HMAC-verified, flips payment to paid) |
 | GET/POST | `/api/chat/...` | user | Conversations & messages |
 | GET/PATCH/DELETE | `/api/admin/...` | admin | Users, products, orders, chat, reports |
 | POST/DELETE | `/api/upload` | user | Image upload |
 | POST | `/api/ai/chat` | public | AI chatbot proxy (Groq → Gemini) |
 | GET | `/api/health` | public | Health check |
+
+---
+
+## 💳 Chapa Payments (Ethiopia)
+
+Buyers can pay their accepted orders in one batch. With **no configuration** the app
+uses the built-in simulation; add a Chapa secret key and the buyer's “Pay in batch”
+button opens a **real hosted checkout** (Telebirr · CBE Birr · bank cards):
+
+```env
+# server/.env
+CHAPA_SECRET_KEY=SECK_TEST_xxxxxxxx        # test keys start with SECK_TEST-
+CHAPA_WEBHOOK_VERIFY_HASH=your_webhook_secret  # optional, from Chapa dashboard
+# CHAPA_API_BASE=https://api.chapa.co/v1     # override only if needed
+```
+
+- Sign up at **https://dashboard.chapa.co** → grab **test keys** (free, instant).
+- Sandbox mode is automatic: keys starting with `SECK_TEST-` / `PUBK_TEST-`.
+- **2.5%** commission per successful domestic transaction.
+- Flow: `POST /api/payments/chapa/initialize` creates a `pending` payment row and
+  returns a hosted `checkout_url` → buyer pays at Chapa → the client polls
+  `POST /api/payments/chapa/verify` (server re-confirms with Chapa) and/or Chapa
+  fires the signed webhook at `/api/payments/chapa/webhook`. Only a `success`
+  verification flips the row to `succeeded`; the buyer's Orders page then shows the
+  green **Paid** badge.
+- **Webhooks** need `CHAPA_WEBHOOK_VERIFY_HASH` set (same value as the Chapa
+  dashboard **Settings → Webhooks → Secret Hash**); without it webhooks return 401.
+- In production, set `PUBLIC_URL` to your real public origin — it becomes Chapa's
+  `callback_url` / `return_url`.
 
 ---
 
@@ -224,4 +256,5 @@ Market prices are bundled in `client/src/data/agriSparkData.js` and always work 
 - **Password reset** currently returns the token in the API response (no email provider
   configured) so the flow can be completed end-to-end — wire up an email/SMS provider in
   `server/src/routes/auth.routes.js` when ready.
-- **Payments** are simulated via order placement (matching the original app's flow).
+- **Payments** default to the simulated batch flow; adding a Chapa secret key upgrades
+  the buyer checkout to a real payment (see [Chapa Payments](#-chapa-payments-ethiopia)).

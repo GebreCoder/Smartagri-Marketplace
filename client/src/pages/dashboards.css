@@ -888,6 +888,77 @@
   flex: 1;
 }
 
+/* ── Chapa real checkout ─────────────────────────────────────────── */
+.pay-method-chapa {
+  border-color: var(--green-600);
+  background: linear-gradient(135deg, #f1fbf5 0%, #ffffff 70%);
+}
+
+.pay-chapa-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--green-600);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  vertical-align: 2px;
+}
+
+.pay-chapa-pending {
+  text-align: center;
+  padding: 8px 4px 4px;
+}
+
+.pay-chapa-spinner {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: #e9f9f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: chapa-pulse 2s ease-in-out infinite;
+}
+
+@keyframes chapa-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(30, 122, 53, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(30, 122, 53, 0);
+  }
+}
+
+.pay-chapa-title {
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--text-1);
+}
+
+.pay-chapa-hint {
+  margin: 8px auto 16px;
+  max-width: 320px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-3);
+}
+
+.pay-chapa-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.pay-chapa-actions .btn {
+  min-width: 150px;
+}
+
 /* ── Order status tabs ───────────────────────────────────────────── */
 .orders-tabs {
   display: flex;

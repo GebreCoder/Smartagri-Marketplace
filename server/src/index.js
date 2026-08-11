@@ -30,7 +30,15 @@ if (!fs.existsSync(config.uploadsDir)) {
 const app = express();
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: "2mb" }));
+app.use(
+  express.json({
+    limit: "2mb",
+    // Keep the raw JSON bytes for webhook signature verification (Chapa HMAC).
+    verify: (req, _res, buf) => {
+      req.rawBody = buf.toString("utf8");
+    },
+  })
+);
 
 // Uploaded images served publicly at /uploads
 app.use("/uploads", express.static(config.uploadsDir));

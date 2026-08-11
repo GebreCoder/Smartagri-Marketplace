@@ -23,6 +23,7 @@ const PAYMENT_METHODS = [
 ];
 
 const METHOD_LABEL = Object.fromEntries(PAYMENT_METHODS.map((m) => [m.id, m.label]));
+METHOD_LABEL.chapa = "Chapa";
 
 const formatEtb = (value) => `ETB ${Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
@@ -30,6 +31,7 @@ export default function BuyerOrders() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [paidByOrder, setPaidByOrder] = useState({});
+  const [chapaEnabled, setChapaEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [reportOrder, setReportOrder] = useState(null);
@@ -47,6 +49,10 @@ export default function BuyerOrders() {
   const [cardError, setCardError] = useState("");
   const [paying, setPaying] = useState(false);
 
+  // Chapa real-payment flow
+  const [chapaTxRef, setChapaTxRef] = useState("");
+  const [chapaCheckoutUrl, setChapaCheckoutUrl] = useState("");
+
   const load = useCallback(async () => {
     const [orderData, paymentData] = await Promise.allSettled([
       api.get("/api/orders/buyer"),
@@ -59,6 +65,7 @@ export default function BuyerOrders() {
     }
     if (paymentData.status === "fulfilled") {
       setPaidByOrder(paymentData.value.paidByOrder || {});
+      setChapaEnabled(Boolean(paymentData.value.chapaEnabled));
     }
     setLoading(false);
   }, []);
@@ -92,9 +99,11 @@ export default function BuyerOrders() {
   const allPaid = hasAccepted && unpaidAccepted.length === 0;
 
   const openPayment = () => {
-    setSelectedMethod("mobile_money");
+    setSelectedMethod(chapaEnabled ? "chapa" : "mobile_money");
     setCardNumber("");
     setCardError("");
+    setChapaTxRef("");
+    setChapaCheckoutUrl("");
     setPaymentStage("method");
     setPaymentOpen(true);
   };
@@ -103,12 +112,73 @@ export default function BuyerOrders() {
     setPaymentOpen(false);
     setCardNumber("");
     setCardError("");
+    setChapaTxRef("");
+    setChapaCheckoutUrl("");
     setPaymentStage("method");
   };
 
+  // Start a real Chapa hosted checkout (Telebirr / CBE Birr / card).
+  const startChapaCheckout = useCallback(async () => {
+    setPaying(true);
+    setCardError("");
+    try {
+      const data = await api.post("/api/payments/chapa/initialize", {
+        orderIds: unpaidAccepted.map((o) => o.id),
+      });
+      setChapaTxRef(data.txRef);
+      setChapaCheckoutUrl(data.checkoutUrl || "");
+      setPaymentStage("chapa-pending");
+      if (data.checkoutUrl) {
+        window.open(data.checkoutUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch (err) {
+      setCardError(err.message || "Could not start Chapa checkout.");
+    } finally {
+      setPaying(false);
+    }
+  }, [unpaidAccepted]);
+
+  // Ask the server to confirm the payment with Chapa.
+  const verifyChapa = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!chapaTxRef) return false;
+      try {
+        const data = await api.post("/api/payments/chapa/verify", { txRef: chapaTxRef });
+        if (data.payment?.status === "succeeded") {
+          closePayment();
+          await load();
+          return true;
+        }
+        if (!silent) {
+          setCardError("Payment is not completed yet — finish it in the Chapa window, then try again.");
+        }
+      } catch (err) {
+        if (!silent) setCardError(err.message || "Could not verify the payment.");
+      }
+      return false;
+    },
+    [chapaTxRef, load]
+  );
+
+  // While the buyer is on Chapa's page, quietly poll until it clears.
+  useEffect(() => {
+    if (paymentStage !== "chapa-pending" || !chapaTxRef) return undefined;
+    const id = setInterval(() => verifyChapa({ silent: true }), 4000);
+    return () => clearInterval(id);
+  }, [paymentStage, chapaTxRef, verifyChapa]);
+
   const payBatch = async () => {
     if (paymentStage === "method") {
+      if (selectedMethod === "chapa") {
+        await startChapaCheckout();
+        return;
+      }
       setPaymentStage("card");
+      return;
+    }
+
+    if (paymentStage === "chapa-pending") {
+      await verifyChapa();
       return;
     }
 
@@ -335,7 +405,7 @@ export default function BuyerOrders() {
         <div className="pay-sheet">
           <div className="pay-sheet-head">
             <h3>Choose payment method</h3>
-            <p>Simulated payment for <strong>{unpaidAccepted.length} accepted order{unpaidAccepted.length === 1 ? "" : "s"}</strong></p>
+            <p>{chapaEnabled ? "Secure checkout for" : "Simulated payment for"} <strong>{unpaidAccepted.length} accepted order{unpaidAccepted.length === 1 ? "" : "s"}</strong></p>
           </div>
 
           <div className="pay-amount-box">
@@ -344,8 +414,57 @@ export default function BuyerOrders() {
             <span className="pay-amount-hint">This single payment covers the whole accepted batch.</span>
           </div>
 
-          {paymentStage === "method" ? (
+          {paymentStage === "chapa-pending" ? (
+            <div className="pay-chapa-pending">
+              <div className="pay-chapa-spinner">
+                <Icon name="lock-closed-outline" size={22} color="#1E7A35" />
+              </div>
+              <div className="pay-chapa-title">Complete payment in the Chapa window</div>
+              <p className="pay-chapa-hint">
+                A secure Chapa checkout opened in a new tab — pay with Telebirr, CBE Birr or a bank
+                card. This page checks automatically, or tap the button once you're done.
+              </p>
+              <div className="pay-chapa-actions">
+                {chapaCheckoutUrl && (
+                  <button
+                    type="button"
+                    className="btn btn-soft"
+                    onClick={() => window.open(chapaCheckoutUrl, "_blank", "noopener,noreferrer")}
+                  >
+                    <Icon name="open-outline" size={15} /> Reopen checkout
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => verifyChapa()}
+                  disabled={paying}
+                >
+                  {paying ? <Spinner light size={16} /> : <><Icon name="refresh-outline" size={15} /> I've completed payment</>}
+                </button>
+              </div>
+            </div>
+          ) : paymentStage === "method" ? (
             <div className="pay-method-list">
+              {chapaEnabled && (
+                <button
+                  type="button"
+                  className={`pay-method-item pay-method-chapa${selectedMethod === "chapa" ? " pay-method-active" : ""}`}
+                  onClick={() => setSelectedMethod("chapa")}
+                >
+                  <span className={`pay-radio${selectedMethod === "chapa" ? " pay-radio-active" : ""}`}>
+                    {selectedMethod === "chapa" && <span className="pay-radio-dot" />}
+                  </span>
+                  <Icon name="globe-outline" size={20} color={selectedMethod === "chapa" ? "#1E7A35" : "#7A8E81"} />
+                  <span className="pay-method-copy">
+                    <span className="pay-method-title">
+                      Chapa secure checkout
+                      <span className="pay-chapa-tag">REAL</span>
+                    </span>
+                    <span className="pay-method-hint">Pay with Telebirr, CBE Birr or a bank card</span>
+                  </span>
+                </button>
+              )}
               {PAYMENT_METHODS.map((method) => {
                 const active = selectedMethod === method.id;
                 return (
@@ -397,7 +516,15 @@ export default function BuyerOrders() {
           <div className="pay-sheet-actions">
             <button className="btn btn-ghost" onClick={closePayment} disabled={paying}>Cancel</button>
             <button className="btn btn-primary" onClick={payBatch} disabled={paying}>
-              {paying ? <Spinner light size={16} /> : paymentStage === "method" ? "Continue" : "Pay batch now"}
+              {paying ? (
+                <Spinner light size={16} />
+              ) : paymentStage === "method" ? (
+                selectedMethod === "chapa" ? "Continue to Chapa" : "Continue"
+              ) : paymentStage === "chapa-pending" ? (
+                "Check payment"
+              ) : (
+                "Pay batch now"
+              )}
             </button>
           </div>
         </div>

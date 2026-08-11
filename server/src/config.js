@@ -24,6 +24,11 @@ export const config = {
   jwtExpiresIn: read("JWT_EXPIRES_IN", "7d"),
   groqApiKey: read("GROQ_API_KEY", ""),
   geminiApiKey: read("GEMINI_API_KEY", ""),
+  chapa: {
+    secretKey: read("CHAPA_SECRET_KEY", ""),
+    webhookHash: read("CHAPA_WEBHOOK_VERIFY_HASH", ""),
+    apiBase: read("CHAPA_API_BASE", "https://api.chapa.co/v1"),
+  },
   uploadsDir: path.resolve(__dirname, "../uploads"),
   seed: {
     adminName: read("SEED_ADMIN_NAME", "Admin AgriSpark"),
