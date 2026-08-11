@@ -1,242 +1,227 @@
-# AgriSpark 🌾
+# 🌾 AgriSpark — PERN Stack
 
-AgriSpark is a mobile agricultural marketplace built with Expo and React Native that connects farmers, buyers, and administrators on a single platform. The system enables farmers to directly sell agricultural products, buyers to discover and purchase products, and administrators to monitor platform activities.
+AgriSpark connects **farmers** and **buyers** directly — no middlemen. This repository is the
+full web re-implementation of the original React Native app, rebuilt as a modern
+**P**ostgreSQL · **E**xpress · **R**eact · **N**ode.js application. All business logic from the
+original app was preserved and ported 1:1.
 
-The platform aims to reduce agricultural product waste, improve market access for farmers, and create a more efficient agricultural supply chain through digital technology.
-
----
-
-## Key Features
-
-### 👨‍🌾 Farmer Features
-
-* Secure registration and authentication
-* Product creation, editing, and deletion
-* Product inventory management
-* Order management (Accept / Reject orders)
-* Real-time chat with buyers
-* Profile management
-* Dashboard with farm activity overview
-
-### 🛒 Buyer Features
-
-* Secure registration and authentication
-* Browse available agricultural products
-* Search and filter products
-* View product details
-* Add products to cart
-* Place orders
-* Track order status
-* Real-time chat with farmers
-* Profile management
-
-### 🧑‍💼 Admin Features
-
-* Manage farmers and buyers
-* Monitor products
-* Monitor orders
-* View platform analytics
-* Manage reports and issues
-* System administration dashboard
-
-### 🤖 AgriSpark AI Assistant
-
-AgriSpark AI is an integrated chatbot that assists users with:
-
-* Application guidance and support
-* Product and order assistance
-* Frequently asked questions
-* Agricultural market information
-* Standard product price lookup
-
-Supported Languages:
-
-* English
-* Amharic (አማርኛ)
-* Afaan Oromo (Oromiffa)
-* Tigrinya (ትግርኛ)
+> Database name: **`smartagri_db`**
 
 ---
 
-## Tech Stack
+## ✨ Features
 
-### Frontend
-
-* React Native
-* Expo
-* Expo Router
-
-### Backend
-
-* Supabase
-* Supabase Authentication
-* PostgreSQL Database
-
-### Development Tools
-
-* Git & GitHub
-* EAS Build
-* ESLint
+| Area | Details |
+| --- | --- |
+| **Landing** | Hero carousel, categories, top products, features, how-it-works, testimonials, AI chatbot FAB |
+| **Auth** | Register / login with roles (farmer, buyer), JWT in `localStorage`, forgot + reset password (token flow) |
+| **Buyer** | Marketplace with search, category filters & pagination · product details · cart · batch orders · order status tracking · delivery confirmation · issue reporting · chat with farmers |
+| **Farmer** | Dashboard with live stats · product CRUD with image upload · accept / reject orders · chat with buyers |
+| **Admin** | Dashboard stats · user management (activate / deactivate / delete with related-data preview) · product moderation · order & dispute overview · chat monitoring · system reports |
+| **AI Chatbot** | 4 languages (EN / Amharic / Afaan Oromo / Tigrinya), market prices tab, Groq primary + Gemini fallback — routed **through the Express server** |
+| **Realtime** | Socket.IO — order updates, new messages, marketplace changes delivered live to connected users |
 
 ---
 
-## Core Modules
+## 🧱 Tech Stack
 
-### Authentication System
+- **Backend** — Node.js + Express, `pg` (PostgreSQL), `bcryptjs`, `jsonwebtoken`, `multer`, `socket.io`
+- **Frontend** — React 19 + Vite, `react-router-dom`, `socket.io-client`, `react-icons`
+- **Database** — PostgreSQL (`smartagri_db`), schema in [`database/schema.sql`](database/schema.sql)
 
-* Role-based access control
-* Farmer accounts
-* Buyer accounts
-* Admin accounts
-* Secure authentication using Supabase
-
-### Product Management
-
-Farmers can:
-
-* Add products
-* Edit products
-* Delete products
-* Manage inventory
-
-### Product Browsing
-
-Buyers can:
-
-* Browse products
-* Search products
-* Filter products
-* View detailed product information
-
-### Cart Management
-
-Buyers can:
-
-* Add products to cart
-* Update quantities
-* Remove items
-* Checkout products
-
-### Order Management
-
-Order statuses include:
-
-* Pending
-* Accepted
-* Rejected
-
-### Payment Management
-
-* Payment processing
-* Payment status tracking
-* Payment records and history
-
-### Real-Time Chat
-
-* Buyer ↔ Farmer communication
-* Order-related discussions
-* Message history tracking
-
-### AI Assistant
-
-* User guidance
-* Product assistance
-* Market price information
-* Multilingual support
+```
+┌────────────┐   REST /api  ┌──────────────┐   SQL    ┌───────────────┐
+│ React SPA  │ ───────────▶ │  Express     │ ───────▶ │ PostgreSQL    │
+│ (Vite)     │              │  API server  │          │ smartagri_db  │
+│            │ ◀─────────── │  + Socket.IO │ ◀─────── │               │
+└────────────┘   WebSocket  └──────────────┘          └───────────────┘
+```
 
 ---
 
-## Farmer Dashboard
+## 🚀 Getting Started
 
-The farmer dashboard serves as the central workspace for managing products and orders.
+### 1. Prerequisites
 
-Features include:
+- **Node.js 18+** (npm included)
+- **PostgreSQL** running locally (or a remote database URL)
 
-* Welcome banner
-* Farm activity overview
-* Product inventory summary
-* Recent products
-* Order notifications
-* Quick actions
-* Profile management
+### 2. Create the database
 
----
+```bash
+psql -U postgres -c "CREATE DATABASE smartagri_db;"
+```
 
-## Getting Started
+Apply the schema:
 
-### 1. Install Dependencies
+```bash
+psql -U postgres -d smartagri_db -f database/schema.sql
+```
+
+### 3. Configure the server
+
+```bash
+cp server/.env.example server/.env
+```
+
+Edit `server/.env` — at minimum set:
+
+```env
+DATABASE_URL=postgres://postgres:yourpassword@localhost:5432/smartagri_db
+JWT_SECRET=<a-long-random-string>
+```
+
+> If you don't use `DATABASE_URL`, set `PG_HOST / PG_PORT / PG_USER / PG_PASSWORD / PG_DATABASE` instead.
+
+### 4. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Configure Environment Variables
+### 5. Seed the database (optional)
 
-Create a `.env` file:
+Creates the admin account and, with `SEED_DEMO=true`, demo users + products:
+
+```bash
+cd server
+npm run seed            # admin only
+SEED_DEMO=true npm run seed   # admin + demo farmers/buyers/products
+```
+
+Default seeded accounts:
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@agrispark.com` | `admin1234` |
+| Farmer (demo) | `farmer@agrispark.com` | `farmer123` |
+| Buyer (demo) | `buyer@agrispark.com` | `buyer123` |
+
+### 6. Run the app (development)
+
+```bash
+npm run dev
+```
+
+- 🖥️ Frontend: http://localhost:5173
+- 🔌 API + Socket.IO: http://localhost:5000
+- 💡 Health check: http://localhost:5000/api/health
+
+### 7. Production build
+
+```bash
+npm run build          # builds client → client/dist
+npm start              # Express serves the built client + API on :5000
+```
+
+---
+
+## 🔑 Authentication Flow
+
+1. Client sends credentials to `POST /api/auth/login` (or `/register`).
+2. Server validates the password with `bcrypt` and returns a **JWT** + user object.
+3. The client stores the token in **`localStorage`** and sends it as `Authorization: Bearer <token>`.
+4. Every request is verified by the `requireAuth` middleware; role checks (`requireFarmer`, `requireAdmin`) gate dashboard routes.
+5. Deactivated accounts (`farmer_inactive`, `buyer_inactive`) are blocked at login and by the token middleware.
+
+---
+
+## 🔌 API Overview
+
+| Method | Endpoint | Access | Purpose |
+| --- | --- | --- | --- |
+| POST | `/api/auth/register` | public | Create account |
+| POST | `/api/auth/login` | public | Log in (JWT) |
+| GET | `/api/auth/me` | user | Current profile |
+| POST | `/api/auth/forgot-password` | public | Request reset token |
+| POST | `/api/auth/reset-password` | public | Set new password |
+| GET | `/api/products` | public | Marketplace (search/category/paging) |
+| GET | `/api/products/featured` | public | Featured picks |
+| GET/POST/PUT/DELETE | `/api/products` | farmer | Manage own products |
+| GET/POST/PATCH/DELETE | `/api/cart` | buyer | Cart management |
+| GET | `/api/orders/buyer` | buyer | My orders |
+| GET | `/api/orders/farmer` | farmer | Incoming orders |
+| POST | `/api/orders/from-cart` | buyer | Place batch order |
+| POST | `/api/orders` | buyer | Buy now |
+| PATCH | `/api/orders/:id/status` | farmer | Accept / reject |
+| POST | `/api/orders/:id/confirm-delivery` | buyer | Confirm delivery |
+| POST | `/api/orders/:id/report-issue` | buyer | Report an issue |
+| GET | `/api/payments/status` | buyer | Paid orders & payment history |
+| POST | `/api/payments/from-orders` | buyer | Simulated batch payment for accepted orders |
+| GET/POST | `/api/chat/...` | user | Conversations & messages |
+| GET/PATCH/DELETE | `/api/admin/...` | admin | Users, products, orders, chat, reports |
+| POST/DELETE | `/api/upload` | user | Image upload |
+| POST | `/api/ai/chat` | public | AI chatbot proxy (Groq → Gemini) |
+| GET | `/api/health` | public | Health check |
+
+---
+
+## 🌐 Realtime Events (Socket.IO)
+
+Clients authenticate sockets with the JWT via handshake auth. Events:
+
+- `order:changed` — emitted to the buyer & farmer of an order on status changes
+- `message:new` — emitted to an order room and both participants
+- `message:cleared` — emitted when an admin clears a thread
+- `product:changed` — broadcast when an admin removes a product
+
+---
+
+## 🤖 AI Chatbot
+
+The chatbot lives at `client/src/components/AiChatbot.jsx` and talks to
+`POST /api/ai/chat`. Add your keys to `server/.env`:
 
 ```env
-EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
-EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
-
-EXPO_PUBLIC_GROQ_API_KEY=your_groq_api_key
-EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
+GROQ_API_KEY=your_key        # primary (llama-3.3-70b-versatile)
+GEMINI_API_KEY=your_key      # fallback (gemini-1.5-flash)
 ```
 
-### 3. Start Development Server
+If neither key is set, the chatbot shows a friendly “AI is not configured” message.
+Market prices are bundled in `client/src/data/agriSparkData.js` and always work offline.
 
+---
 
-Useful commands:
+## 📁 Project Structure
 
-```bash
-npm expo start
 ```
-
-```bash
-npm run android
-npm run ios
-npm run web
-npm run lint
+├── database/
+│   └── schema.sql            # PostgreSQL schema for smartagri_db
+├── server/
+│   ├── .env.example
+│   └── src/
+│       ├── index.js          # Express + Socket.IO bootstrap
+│       ├── config.js         # Env-driven config
+│       ├── db.js             # pg pool + transactions
+│       ├── utils.js          # Shared helpers (prices, roles, shaping)
+│       ├── aiPrompt.js       # Chatbot system prompt
+│       ├── seed.js           # Seed script
+│       ├── middleware/       # auth (JWT), upload (multer), error handler
+│       ├── routes/           # auth, users, products, cart, orders, chat, admin, upload, ai
+│       └── socket.js         # Realtime layer
+└── client/
+    ├── .env.example
+    ├── index.html
+    ├── vite.config.js        # Dev proxy → :5000
+    └── src/
+        ├── main.jsx / App.jsx  # Router + guards
+        ├── auth.jsx            # Auth context (JWT in localStorage)
+        ├── api.js              # Fetch wrapper + upload helper
+        ├── socket.js           # Socket.IO helper
+        ├── Icon.jsx            # Ionicons icon mapping
+        ├── data/agriSparkData.js
+        ├── components/         # Shared UI (cards, chatbot, modals…)
+        ├── pages/              # Landing, auth, buyer, farmer, admin, chat, profile
+        └── styles/             # Design system CSS
 ```
 
 ---
 
-## Build APK
+## 🔐 Notes
 
-Generate an Android APK using Expo EAS:
-
-```bash
-eas build -p android --profile preview
-```
-
-Generate a production build:
-
-```bash
-eas build -p android --profile production
-```
-Open:
-
-```text
-http://localhost:8080
-```
-
----
-
-## Future Enhancements
-
-* Delivery Tracking
-* Voice-Based AI Assistant
-* Weather Information Integration
-* Agricultural Advisory Services
-* Price Trend Analysis
-* Google Play Store Deployment
-
----
-
-## Project Goal
-
-AgriSpark aims to empower Ethiopian farmers through digital access to markets while helping buyers efficiently source agricultural products. The platform creates a transparent, scalable, and user-friendly ecosystem for agricultural commerce.
-
-
-## For Information refer to the Documentation
-
-AgriSpark-Documentation.pdf
+- **Passwords** are hashed with `bcrypt` (cost 10).
+- **Uploads** are stored on disk in `server/uploads/` and served at `/uploads`.
+- **Password reset** currently returns the token in the API response (no email provider
+  configured) so the flow can be completed end-to-end — wire up an email/SMS provider in
+  `server/src/routes/auth.routes.js` when ready.
+- **Payments** are simulated via order placement (matching the original app's flow).
