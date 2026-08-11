@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Icon from "../../Icon.jsx";
 import { api } from "../../api.js";
 import { Spinner } from "../../components/Spinner.jsx";
-import { Sparkline, BarChart } from "../../components/Charts.jsx";
+import { Sparkline, BarChart, ProgressBar } from "../../components/Charts.jsx";
 import { getSocket } from "../../socket.js";
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1464226184884-fa280b87c399";
@@ -67,6 +67,10 @@ export default function BuyerHome() {
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState(new Set());
   const [aiParagraph, setAiParagraph] = useState(null);
+  const [insights, setInsights] = useState(null);
+  const [budget, setBudget] = useState(null);
+  const [budgetInput, setBudgetInput] = useState("");
+  const [savingBudget, setSavingBudget] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -78,6 +82,40 @@ export default function BuyerHome() {
       setLoading(false);
     }
   }, []);
+
+  // Spending insights + monthly budget (separate lightweight endpoints).
+  const loadSpending = useCallback(async () => {
+    try {
+      const [insightsResult, budgetResult] = await Promise.all([
+        api.get("/api/dashboard/buyer/insights"),
+        api.get("/api/dashboard/budget"),
+      ]);
+      setInsights(insightsResult);
+      setBudget(budgetResult);
+    } catch {
+      /* keep cards empty on failure */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSpending();
+  }, [loadSpending]);
+
+  const saveBudget = async () => {
+    const amount = Number(budgetInput);
+    if (!(amount > 0)) return;
+    setSavingBudget(true);
+    try {
+      await api.put("/api/dashboard/budget", { amount });
+      const budgetResult = await api.get("/api/dashboard/budget");
+      setBudget(budgetResult);
+      setBudgetInput("");
+    } catch {
+      alert("Could not save your budget.");
+    } finally {
+      setSavingBudget(false);
+    }
+  };
 
   // Real LLM insight paragraph when a key is configured (rules fallback otherwise).
   useEffect(() => {
@@ -117,7 +155,10 @@ export default function BuyerHome() {
 
   useEffect(() => {
     const socket = getSocket();
-    const onChange = () => load();
+    const onChange = () => {
+      load();
+      loadSpending();
+    };
     socket.on("order:changed", onChange);
     socket.on("message:new", onChange);
     socket.on("product:changed", onChange);
@@ -126,7 +167,7 @@ export default function BuyerHome() {
       socket.off("message:new", onChange);
       socket.off("product:changed", onChange);
     };
-  }, [load]);
+  }, [load, loadSpending]);
 
   const toggleFavorite = async (productId) => {
     if (!productId) return;
@@ -279,6 +320,100 @@ export default function BuyerHome() {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* ── Spending insights (budget tracker + price alerts + categories) ── */}
+      <div className="d2-grid-4">
+        <div className="d2-card d2-budget-card">
+          <div className="d2-card-head">
+            <div className="d2-card-title">
+              <Icon name="wallet-outline" size={15} color="#16A34A" /> Monthly Budget
+            </div>
+            {budget?.amount > 0 && <span className="d2-new-badge">{budget.month}</span>}
+          </div>
+          {budget?.amount > 0 ? (
+            <>
+              <div className="d2-budget-numbers">
+                <div>
+                  <div className="d2-budget-spent">{fmtMoney(budget.spent)}</div>
+                  <div className="d2-budget-caption">spent of {fmtMoney(budget.amount)}</div>
+                </div>
+                <div className="d2-budget-remaining">{fmtMoney(budget.remaining)}</div>
+              </div>
+              <ProgressBar value={budget.pct} color={budget.pct >= 80 ? "#DC2626" : budget.pct >= 50 ? "#F59E0B" : "#16A34A"} height={10} showLabel />
+              <div className={`d2-budget-status ${budget.pct >= 100 ? "over" : ""}`}>
+                {budget.pct >= 100 ? "You have exceeded your monthly budget." : `${100 - budget.pct}% of budget remaining this month.`}
+              </div>
+            </>
+          ) : (
+            <div className="d2-budget-empty">Set a monthly budget to track your spending.</div>
+          )}
+          <div className="d2-budget-form">
+            <input
+              type="number"
+              min="1"
+              value={budgetInput}
+              onChange={(e) => setBudgetInput(e.target.value)}
+              placeholder={budget?.amount > 0 ? "Update budget (ETB)" : "Set budget (ETB)"}
+            />
+            <button className="d2-btn-primary-sm" onClick={saveBudget} disabled={savingBudget || !(Number(budgetInput) > 0)}>
+              {savingBudget ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+
+        <div className="d2-card d2-price-alerts-card">
+          <div className="d2-card-head">
+            <div className="d2-card-title">
+              <Icon name="trending-down-outline" size={15} color="#DC2626" /> Price Drop Alerts
+            </div>
+            <span className="d2-new-badge">Favorites</span>
+          </div>
+          {insights?.priceAlerts?.length ? (
+            <div className="d2-price-alerts">
+              {insights.priceAlerts.map((alert) => (
+                <button
+                  className="d2-price-alert"
+                  key={alert.productId}
+                  onClick={() => navigate(`/buyer/product-details/${alert.productId}`)}
+                >
+                  <img src={alert.image_url || FALLBACK_IMAGE} alt={alert.name} />
+                  <div className="d2-price-alert-body">
+                    <div className="d2-price-alert-name">{alert.name}</div>
+                    <div className="d2-price-alert-drop">↓ {alert.drop_label} · {alert.drop_pct}% off</div>
+                  </div>
+                  <span className="d2-price-alert-now">{alert.new_price_label}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="d2-table-empty">No price drops on your favorites yet — we&apos;ll alert you here.</div>
+          )}
+        </div>
+
+        <div className="d2-card d2-span-2 d2-spend-cat-card">
+          <div className="d2-card-head">
+            <div className="d2-card-title">Spending by Category</div>
+            <div className="d2-new-badge">Top: {insights?.topCategory || "—"}</div>
+          </div>
+          {insights?.spendingByCategory?.length ? (
+            <div className="d2-spend-cats">
+              {insights.spendingByCategory.map((cat) => (
+                <div className="d2-spend-cat" key={cat.category}>
+                  <div className="d2-spend-cat-top">
+                    <span className="d2-spend-cat-name">
+                      <span className="d2-dot" style={{ background: cat.color }} /> {cat.category}
+                    </span>
+                    <span className="d2-spend-cat-value">{cat.value_label} · {cat.pct}%</span>
+                  </div>
+                  <ProgressBar value={cat.pct} color={cat.color} height={7} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="d2-table-empty">Spend with accepted orders to see your category breakdown.</div>
+          )}
         </div>
       </div>
 

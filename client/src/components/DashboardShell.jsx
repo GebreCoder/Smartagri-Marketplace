@@ -19,8 +19,8 @@ const FARMER_NAV = [
     { to: "/farmer/orders", label: "Orders", icon: "receipt-outline" },
     { to: "/farmer/orders", label: "Customers", icon: "people-outline" },
     { to: "/farmer/products", label: "Inventory", icon: "layers-outline" },
-    { to: "/farmer", label: "Sales & Revenue", icon: "stats-chart-outline" },
-    { to: "/farmer", label: "Analytics", icon: "bar-chart-outline" },
+    { to: "/farmer/analytics", label: "Sales & Revenue", icon: "stats-chart-outline" },
+    { to: "/farmer/analytics", label: "Analytics", icon: "bar-chart-outline" },
   ]},
   { section: "FARM MANAGEMENT", items: [
     { to: "/farmer/crops", label: "My Farm", icon: "leaf-outline" },

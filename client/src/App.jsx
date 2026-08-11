@@ -26,6 +26,7 @@ import FarmerOrders from "./pages/farmer/Orders.jsx";
 import FarmerChatbox from "./pages/farmer/Chatbox.jsx";
 import FarmerCrops from "./pages/farmer/Crops.jsx";
 import FarmerCalendar from "./pages/farmer/Calendar.jsx";
+import FarmerAnalytics from "./pages/farmer/Analytics.jsx";
 
 import MarketPrices from "./pages/MarketPrices.jsx";
 
@@ -116,6 +117,7 @@ export default function App() {
         <Route path="chat" element={<FarmerChatbox />} />
         <Route path="crops" element={<FarmerCrops />} />
         <Route path="calendar" element={<FarmerCalendar />} />
+        <Route path="analytics" element={<FarmerAnalytics />} />
         <Route path="market-prices" element={<MarketPrices />} />
       </Route>
 

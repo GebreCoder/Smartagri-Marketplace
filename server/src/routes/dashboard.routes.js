@@ -98,6 +98,11 @@ const dayKey = (date) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+const monthKey = (date) => {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+
 // ── Farmer dashboard ──────────────────────────────────────────────
 // GET /api/dashboard/farmer
 router.get(
@@ -297,6 +302,169 @@ router.get(
       weather,
       lowStockCount: lowStockProducts.length,
       dateLabel: new Date().toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" }),
+    });
+  })
+);
+
+// ── Farmer analytics ─────────────────────────────────────────────
+// GET /api/dashboard/farmer/analytics
+router.get(
+  "/farmer/analytics",
+  requireFarmer,
+  asyncHandler(async (req, res) => {
+    const farmerId = req.user.id;
+
+    const [productRows, orderRows, harvestRows] = await Promise.all([
+      query(`SELECT ${PRODUCT_COLUMNS} FROM products p LEFT JOIN users u ON u.id = p.farmer_id WHERE p.farmer_id = $1 ORDER BY p.created_at DESC`, [farmerId]),
+      query(`${ORDER_SELECT} WHERE p.farmer_id = $1 ORDER BY o.created_at DESC`, [farmerId]),
+      query("SELECT * FROM harvests WHERE farmer_id = $1 ORDER BY harvested_at DESC", [farmerId]),
+    ]);
+
+    const orders = orderRows.rows.map(shapeOrderRow);
+    const products = productRows.rows.map((row) =>
+      shapeProduct(row, {
+        full_name: row.farmer_full_name,
+        location: row.farmer_location,
+        profile_image_url: row.farmer_profile_image_url,
+      })
+    );
+
+    const accepted = orders.filter((o) => o.rawStatus === "accepted");
+    const revenueOf = (o) => Number(o.total || 0);
+
+    // ── Top products by revenue ──
+    const productMap = new Map();
+    accepted.forEach((o) => {
+      const entry = productMap.get(String(o.product_id)) || {
+        id: o.product_id,
+        name: o.product_name,
+        image_url: o.image_url || FALLBACK_IMAGE,
+        category: o.product?.category || "Other",
+        revenue: 0,
+        units: 0,
+        orders: 0,
+      };
+      entry.revenue += revenueOf(o);
+      entry.units += Number(o.quantity || 0);
+      entry.orders += 1;
+      productMap.set(String(o.product_id), entry);
+    });
+    // Products with no sales yet still appear (revenue 0).
+    products.forEach((p) => {
+      if (!productMap.has(String(p.id))) {
+        productMap.set(String(p.id), {
+          id: p.id,
+          name: p.name,
+          image_url: p.image_url || FALLBACK_IMAGE,
+          category: p.category || "Other",
+          revenue: 0,
+          units: 0,
+          orders: 0,
+        });
+      }
+    });
+    const totalRevenue = [...productMap.values()].reduce((s, p) => s + p.revenue, 0);
+    const topProducts = [...productMap.values()]
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 8)
+      .map((p) => ({
+        ...p,
+        revenue_label: `ETB ${Math.round(p.revenue).toLocaleString("en-US")}`,
+        share: totalRevenue > 0 ? Math.round((p.revenue / totalRevenue) * 100) : 0,
+      }));
+
+    // ── Order status breakdown ──
+    const statusColors = { pending: "#F59E0B", accepted: "#16A34A", rejected: "#DC2626" };
+    const statusCounts = { pending: 0, accepted: 0, rejected: 0 };
+    orders.forEach((o) => {
+      if (statusCounts[o.rawStatus] !== undefined) statusCounts[o.rawStatus] += 1;
+    });
+    const statusBreakdown = Object.entries(statusCounts).map(([status, count]) => ({
+      status,
+      label: status[0].toUpperCase() + status.slice(1),
+      count,
+      color: statusColors[status],
+    }));
+
+    // ── Customer insights (repeat rate, top buyers) ──
+    const buyerStats = new Map(); // buyerId -> { orders, spend }
+    orders.forEach((o) => {
+      const entry = buyerStats.get(String(o.buyer_id)) || { orders: 0, spend: 0 };
+      entry.orders += 1;
+      if (o.rawStatus === "accepted") entry.spend += revenueOf(o);
+      buyerStats.set(String(o.buyer_id), entry);
+    });
+    const uniqueBuyers = buyerStats.size;
+    const repeatBuyers = [...buyerStats.values()].filter((b) => b.orders >= 2).length;
+    const repeatRate = uniqueBuyers > 0 ? Math.round((repeatBuyers / uniqueBuyers) * 100) : 0;
+    const buyerNames = await getBuyerNames([...buyerStats.keys()]);
+    const topBuyers = [...buyerStats.entries()]
+      .sort((a, b) => b[1].spend - a[1].spend)
+      .slice(0, 5)
+      .map(([buyerId, stats]) => ({
+        id: buyerId,
+        name: buyerNames.get(String(buyerId)) || "Buyer",
+        orders: stats.orders,
+        spend: Math.round(stats.spend),
+        spend_label: `ETB ${Math.round(stats.spend).toLocaleString("en-US")}`,
+      }));
+
+    // ── Monthly trend (last 12 months) ──
+    const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const now = Date.now();
+    const trend = [];
+    for (let i = 11; i >= 0; i -= 1) {
+      const m = new Date(now - i * 30 * 24 * 60 * 60 * 1000);
+      const mStart = new Date(m.getFullYear(), m.getMonth(), 1);
+      const mEnd = new Date(m.getFullYear(), m.getMonth() + 1, 1);
+      const monthOrders = accepted.filter((o) => new Date(o.created_at) >= mStart && new Date(o.created_at) < mEnd);
+      trend.push({
+        label: monthLabels[m.getMonth()],
+        revenue: Math.round(monthOrders.reduce((s, o) => s + revenueOf(o), 0)),
+        orders: monthOrders.length,
+      });
+    }
+
+    // ── Sales by category ──
+    const catMap = new Map();
+    accepted.forEach((o) => {
+      const cat = o.product?.category || "Other";
+      catMap.set(cat, (catMap.get(cat) || 0) + revenueOf(o));
+    });
+    const CAT_COLORS = ["#16A34A", "#0D9488", "#F59E0B", "#8B5CF6", "#E11D48", "#64748B"];
+    const categorySales = [...catMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([category, value], index) => ({
+        category,
+        value: Math.round(value),
+        value_label: `ETB ${Math.round(value).toLocaleString("en-US")}`,
+        color: CAT_COLORS[index % CAT_COLORS.length],
+        pct: totalRevenue > 0 ? Math.round((value / totalRevenue) * 100) : 0,
+      }));
+
+    // ── Summary metrics ──
+    const totalOrders = orders.length;
+    const avgOrderValue = accepted.length > 0 ? Math.round(totalRevenue / accepted.length) : 0;
+    const fulfillmentRate = totalOrders > 0 ? Math.round((statusCounts.accepted / totalOrders) * 100) : 0;
+    const totalHarvest = harvestRows.rows.reduce((s, h) => s + Number(h.quantity_kg || 0), 0);
+
+    return res.json({
+      summary: {
+        totalRevenue: Math.round(totalRevenue),
+        totalRevenue_label: `ETB ${Math.round(totalRevenue).toLocaleString("en-US")}`,
+        totalOrders,
+        acceptedOrders: statusCounts.accepted,
+        uniqueBuyers,
+        repeatRate,
+        avgOrderValue: `ETB ${avgOrderValue.toLocaleString("en-US")}`,
+        fulfillmentRate,
+        totalHarvest: `${totalHarvest.toLocaleString("en-US")} kg`,
+      },
+      topProducts,
+      statusBreakdown,
+      topBuyers,
+      trend: { labels: trend.map((t) => t.label), revenue: trend.map((t) => t.revenue), orders: trend.map((t) => t.orders) },
+      categorySales,
     });
   })
 );
@@ -649,15 +817,22 @@ router.post(
     }
     // Product favorite (farmer_id NULL) and farmer follow (product_id NULL) are
     // mutually exclusive, so each gets its own conflict target matching the
-    // partial unique indexes in schema.sql.
+    // partial unique indexes in schema.sql. Product favorites snapshot the
+    // current price so buyers can later get price-drop alerts.
+    let priceAtFavorite = null;
+    if (productId && !farmerId) {
+      const { rows: pRows } = await query("SELECT price FROM products WHERE id = $1", [productId]);
+      priceAtFavorite = pRows[0] ? Number(pRows[0].price) : null;
+    }
     const { rows } =
       productId && !farmerId
         ? await query(
-            `INSERT INTO favorites (buyer_id, product_id)
-             VALUES ($1, $2::uuid)
-             ON CONFLICT (buyer_id, product_id) WHERE farmer_id IS NULL DO NOTHING
+            `INSERT INTO favorites (buyer_id, product_id, price_at_favorite)
+             VALUES ($1, $2::uuid, $3)
+             ON CONFLICT (buyer_id, product_id) WHERE farmer_id IS NULL
+             DO UPDATE SET price_at_favorite = EXCLUDED.price_at_favorite
              RETURNING *`,
-            [req.user.id, productId]
+            [req.user.id, productId, priceAtFavorite]
           )
         : await query(
             `INSERT INTO favorites (buyer_id, farmer_id)
@@ -745,6 +920,134 @@ router.post(
     const fallback = String(req.body.fallback || "");
     const result = await generateAiParagraph({ role, context, fallback });
     return res.json(result);
+  })
+);
+
+// ── Buyer budget (monthly spending target) ─────────────────────────
+// GET /api/dashboard/budget?month=YYYY-MM   → { month, amount, spent, remaining }
+// PUT /api/dashboard/budget  body: { month, amount }
+router.get(
+  "/budget",
+  requireBuyer,
+  asyncHandler(async (req, res) => {
+    const requested = String(req.query.month || "").trim();
+    const month = /^\d{4}-\d{2}$/.test(requested) ? requested : monthKey(new Date());
+    const { rows: budgetRows } = await query("SELECT amount FROM budgets WHERE buyer_id = $1 AND month = $2", [req.user.id, month]);
+    const amount = Number(budgetRows[0]?.amount || 0);
+
+    const { rows: orderRows } = await query(`${ORDER_SELECT} WHERE o.buyer_id = $1`, [req.user.id]);
+    const spent = orderRows
+      .filter((o) => normalizeText(o.status).toLowerCase() === "accepted" && o.created_at && monthKey(o.created_at) === month)
+      .reduce((s, o) => s + Number(o.price || 0) * Math.max(1, Number(o.quantity || 1)), 0);
+
+    return res.json({
+      month,
+      amount: Math.round(amount),
+      spent: Math.round(spent),
+      remaining: Math.max(0, Math.round(amount - spent)),
+      pct: amount > 0 ? Math.min(100, Math.round((spent / amount) * 100)) : 0,
+    });
+  })
+);
+
+router.put(
+  "/budget",
+  requireBuyer,
+  asyncHandler(async (req, res) => {
+    const requested = String(req.body.month || "").trim();
+    const month = /^\d{4}-\d{2}$/.test(requested) ? requested : monthKey(new Date());
+    const amount = Math.max(0, Number(req.body.amount || 0));
+    if (!(amount > 0)) return res.status(400).json({ message: "Budget must be greater than zero." });
+
+    await query(
+      `INSERT INTO budgets (buyer_id, month, amount)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (buyer_id, month) DO UPDATE SET amount = EXCLUDED.amount, updated_at = now()`,
+      [req.user.id, month, amount]
+    );
+    return res.json({ month, amount: Math.round(amount), message: "Budget saved." });
+  })
+);
+
+// ── Buyer spending insights ───────────────────────────────────────
+// GET /api/dashboard/buyer/insights → spending by category, price-drop
+// alerts on favorites, and a 12-month spending trend.
+router.get(
+  "/buyer/insights",
+  requireBuyer,
+  asyncHandler(async (req, res) => {
+    const [orderRows, favRows] = await Promise.all([
+      query(`${ORDER_SELECT} WHERE o.buyer_id = $1 ORDER BY o.created_at DESC`, [req.user.id]),
+      query(
+        `SELECT f.id AS fav_id, f.product_id, f.price_at_favorite, f.created_at,
+                p.name AS product_name, p.price AS current_price, p.category, p.image_url
+         FROM favorites f
+         JOIN products p ON p.id = f.product_id
+         WHERE f.buyer_id = $1 AND f.product_id IS NOT NULL
+         ORDER BY f.created_at DESC`,
+        [req.user.id]
+      ),
+    ]);
+
+    const orders = orderRows.rows.map(shapeOrderRow);
+    const accepted = orders.filter((o) => o.rawStatus === "accepted");
+
+    // ── Spending by category (all time + this month) ──
+    const now = new Date();
+    const thisMonth = monthKey(now);
+    const catMap = new Map();
+    const monthCatMap = new Map();
+    accepted.forEach((o) => {
+      const cat = o.product?.category || "Other";
+      const value = Number(o.total || 0);
+      catMap.set(cat, (catMap.get(cat) || 0) + value);
+      if (monthKey(o.created_at) === thisMonth) {
+        monthCatMap.set(cat, (monthCatMap.get(cat) || 0) + value);
+      }
+    });
+    const CAT_COLORS = ["#16A34A", "#0D9488", "#F59E0B", "#8B5CF6", "#E11D48", "#64748B"];
+    const spendingByCategory = [...catMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([category, value], index) => ({
+        category,
+        value: Math.round(value),
+        value_label: `ETB ${Math.round(value).toLocaleString("en-US")}`,
+        color: CAT_COLORS[index % CAT_COLORS.length],
+        pct: accepted.length > 0 ? Math.round((value / accepted.reduce((s, o) => s + Number(o.total || 0), 0)) * 100) : 0,
+        this_month: Math.round(monthCatMap.get(category) || 0),
+      }));
+
+    // ── Price-drop alerts (current price < price when favorited) ──
+    const priceAlerts = favRows.rows
+      .filter((f) => f.price_at_favorite && f.current_price !== null && Number(f.current_price) < Number(f.price_at_favorite))
+      .map((f) => {
+        const drop = Number(f.price_at_favorite) - Number(f.current_price);
+        return {
+          productId: f.product_id,
+          name: f.product_name,
+          image_url: f.image_url || FALLBACK_IMAGE,
+          old_price: Number(f.price_at_favorite),
+          new_price: Number(f.current_price),
+          drop_label: `ETB ${Math.round(drop).toLocaleString("en-US")}`,
+          drop_pct: Math.round((drop / Number(f.price_at_favorite)) * 100),
+          new_price_label: `ETB ${Number(f.current_price).toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
+        };
+      })
+      .sort((a, b) => b.drop_pct - a.drop_pct)
+      .slice(0, 5);
+
+    const totalSpent = accepted.reduce((s, o) => s + Number(o.total || 0), 0);
+    const thisMonthSpent = monthCatMap.size ? [...monthCatMap.values()].reduce((s, v) => s + v, 0) : 0;
+
+    return res.json({
+      totalSpent: Math.round(totalSpent),
+      totalSpent_label: `ETB ${Math.round(totalSpent).toLocaleString("en-US")}`,
+      thisMonthSpent: Math.round(thisMonthSpent),
+      thisMonthSpent_label: `ETB ${Math.round(thisMonthSpent).toLocaleString("en-US")}`,
+      topCategory: [...catMap.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "—",
+      spendingByCategory,
+      priceAlerts,
+    });
   })
 );
 

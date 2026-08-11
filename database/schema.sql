@@ -197,6 +197,7 @@ CREATE TABLE IF NOT EXISTS favorites (
   buyer_id   uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   farmer_id  uuid REFERENCES users(id) ON DELETE CASCADE,
   product_id uuid REFERENCES products(id) ON DELETE CASCADE,
+  price_at_favorite numeric,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT favorites_target_check CHECK (farmer_id IS NOT NULL OR product_id IS NOT NULL)
 );
@@ -207,7 +208,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_favorites_product ON favorites(buyer_id, p
 CREATE UNIQUE INDEX IF NOT EXISTS idx_favorites_farmer ON favorites(buyer_id, farmer_id) WHERE product_id IS NULL;
 
 -- ------------------------------------------------------------
--- MARKET PRICES (reference wholesale prices per kg/100kg)
+-- BUYER BUDGETS (monthly spending target per buyer)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS budgets (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  buyer_id   uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  month      text NOT NULL, -- 'YYYY-MM'
+  amount     numeric NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (buyer_id, month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_budgets_buyer ON budgets(buyer_id);
+
+-- ------------------------------------------------------------ (reference wholesale prices per kg/100kg)
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS market_prices (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
