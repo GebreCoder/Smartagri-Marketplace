@@ -19,6 +19,7 @@ import adminRoutes from "./routes/admin.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import paymentRoutes from "./routes/payments.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
+import dashboardRoutes from "./routes/dashboard.routes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,6 +56,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // ── Serve the built React client in production ─────────────────────
 const clientDist = path.resolve(__dirname, "../../client/dist");

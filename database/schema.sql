@@ -140,3 +140,84 @@ CREATE TABLE IF NOT EXISTS password_resets (
 );
 
 CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+
+-- ------------------------------------------------------------
+-- CROPS (farmer's farm management)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS crops (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  farmer_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name         text NOT NULL,
+  category     text NOT NULL DEFAULT 'Vegetables',
+  growth_stage text NOT NULL DEFAULT 'Growing',
+  planted_date date,
+  progress     integer NOT NULL DEFAULT 0,
+  health       text NOT NULL DEFAULT 'Good',
+  image_url    text,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_crops_farmer ON crops(farmer_id);
+
+-- ------------------------------------------------------------
+-- FARM ACTIVITIES (farmer calendar / quick actions)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS farm_activities (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  farmer_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title         text NOT NULL,
+  activity_type text NOT NULL DEFAULT 'task',
+  crop_name     text NOT NULL DEFAULT '',
+  activity_date date NOT NULL,
+  status        text NOT NULL DEFAULT 'planned',
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_farm_activities_farmer ON farm_activities(farmer_id);
+
+-- ------------------------------------------------------------
+-- HARVESTS (production records → farm performance)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS harvests (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  farmer_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  crop_name    text NOT NULL DEFAULT '',
+  category     text NOT NULL DEFAULT 'Vegetables',
+  quantity_kg  numeric NOT NULL DEFAULT 0,
+  harvested_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_harvests_farmer ON harvests(farmer_id);
+
+-- ------------------------------------------------------------
+-- FAVORITES (buyer saves products & follows farmers)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS favorites (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  buyer_id   uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  farmer_id  uuid REFERENCES users(id) ON DELETE CASCADE,
+  product_id uuid REFERENCES products(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT favorites_target_check CHECK (farmer_id IS NOT NULL OR product_id IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS idx_favorites_buyer ON favorites(buyer_id);
+-- Dedupe: a buyer may favorite a product (no farmer) or follow a farmer (no product) at most once.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_favorites_product ON favorites(buyer_id, product_id) WHERE farmer_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_favorites_farmer ON favorites(buyer_id, farmer_id) WHERE product_id IS NULL;
+
+-- ------------------------------------------------------------
+-- MARKET PRICES (reference wholesale prices per kg/100kg)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS market_prices (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       text NOT NULL,
+  category   text NOT NULL DEFAULT 'Vegetables',
+  unit       text NOT NULL DEFAULT 'kg',
+  price      numeric NOT NULL DEFAULT 0,
+  change_pct numeric NOT NULL DEFAULT 0,
+  trend      text NOT NULL DEFAULT 'up',
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_market_prices_category ON market_prices(category);
