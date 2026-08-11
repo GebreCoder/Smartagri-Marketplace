@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import Icon from "../Icon.jsx";
 import { api, setToken } from "../api.js";
 import { useAuth } from "../auth.jsx";
-import { getSocket } from "../socket.js";
+import { disconnectSocket, getSocket } from "../socket.js";
 
 const getInitials = (name) => {
   const value = String(name || "").trim();
@@ -183,6 +183,8 @@ export default function DashboardShell({ role = "farmer" }) {
 
   const handleLogout = () => {
     setToken("");
+    // Tear down the socket so the next login starts with a fresh connection.
+    disconnectSocket();
     navigate("/login-register?mode=login");
   };
 

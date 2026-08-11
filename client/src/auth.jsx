@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, getToken, setToken } from "./api.js";
+import { resetSocket } from "./socket.js";
 
 const AuthContext = createContext(null);
 
@@ -38,6 +39,8 @@ export function AuthProvider({ children }) {
     const data = await api.post("/api/auth/login", { email, password });
     setToken(data.token);
     setUser(data.user);
+    // Recreate the socket under the new session — never reuse an old user's socket.
+    resetSocket();
     return data.user;
   }, []);
 
@@ -54,6 +57,8 @@ export function AuthProvider({ children }) {
       });
       setToken(data.token);
       setUser(data.user);
+      // Recreate the socket under the new session — never reuse an old user's socket.
+      resetSocket();
       return data.user;
     },
     []
@@ -67,6 +72,8 @@ export function AuthProvider({ children }) {
     }
     setToken(null);
     setUser(null);
+    // Drop the socket so it cannot receive events for a signed-out user.
+    resetSocket();
   }, []);
 
   const refresh = useCallback(async () => {

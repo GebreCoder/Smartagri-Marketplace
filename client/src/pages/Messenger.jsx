@@ -255,6 +255,17 @@ export default function Messenger() {
     };
   }, [activeConvId, appliedSearch, loadConversations, loadThread, selfId, soundOn]);
 
+  // Re-sync on (re)connect so events fired before the socket was up are not missed.
+  useEffect(() => {
+    const socket = getSocket();
+    const onConnect = () => {
+      loadConversations(appliedSearch);
+      if (activeConvId) loadThread(activeConvId);
+    };
+    socket.on("connect", onConnect);
+    return () => socket.off("connect", onConnect);
+  }, [activeConvId, appliedSearch, loadConversations, loadThread]);
+
   // Online presence — live updates from the socket, seeded from server snapshots.
   useEffect(() => {
     const socket = getSocket();

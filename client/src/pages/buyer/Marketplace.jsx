@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Icon from "../../Icon.jsx";
 import { api } from "../../api.js";
+import { getSocket } from "../../socket.js";
 import { Spinner, SkeletonCard } from "../../components/Spinner.jsx";
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1464226184884-fa280b87c399";
@@ -47,6 +48,22 @@ export default function Marketplace() {
     setLoading(true);
     offsetRef.current = 0;
     fetchProducts(0, false);
+  }, [fetchProducts]);
+
+  // Live marketplace: refresh when a farmer publishes/edits/removes a
+  // product, and whenever the socket (re)connects so nothing is missed.
+  useEffect(() => {
+    const socket = getSocket();
+    const refresh = () => {
+      offsetRef.current = 0;
+      fetchProducts(0, false);
+    };
+    socket.on("product:changed", refresh);
+    socket.on("connect", refresh);
+    return () => {
+      socket.off("product:changed", refresh);
+      socket.off("connect", refresh);
+    };
   }, [fetchProducts]);
 
   const handleSearch = () => setAppliedSearch(search.trim());

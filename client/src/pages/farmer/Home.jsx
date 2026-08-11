@@ -123,9 +123,13 @@ export default function FarmerHome() {
     const onChange = () => load();
     socket.on("order:changed", onChange);
     socket.on("message:new", onChange);
+    // Re-sync on (re)connect so events fired before the socket was up
+    // (or during a reconnect gap) are never missed.
+    socket.on("connect", onChange);
     return () => {
       socket.off("order:changed", onChange);
       socket.off("message:new", onChange);
+      socket.off("connect", onChange);
     };
   }, [load]);
 

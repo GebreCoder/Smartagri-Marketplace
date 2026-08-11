@@ -162,10 +162,14 @@ export default function BuyerHome() {
     socket.on("order:changed", onChange);
     socket.on("message:new", onChange);
     socket.on("product:changed", onChange);
+    // Re-sync on (re)connect so events fired before the socket was up
+    // (or during a reconnect gap) are never missed.
+    socket.on("connect", onChange);
     return () => {
       socket.off("order:changed", onChange);
       socket.off("message:new", onChange);
       socket.off("product:changed", onChange);
+      socket.off("connect", onChange);
     };
   }, [load, loadSpending]);
 

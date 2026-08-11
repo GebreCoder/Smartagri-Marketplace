@@ -2,6 +2,7 @@ import { Router } from "express";
 import { query } from "../db.js";
 import { requireAuth, requireFarmer } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/error.js";
+import { emitGlobal } from "../socket.js";
 import { normalizeText, shapeProduct } from "../utils.js";
 
 const router = Router();
@@ -139,6 +140,8 @@ router.post(
       [req.user.id, name, category, description, price, quantity, location, imageUrl]
     );
 
+    // Buyers' marketplace refreshes live when a farmer publishes a product.
+    emitGlobal("product:changed", {});
     return res.status(201).json({ product: rows[0] });
   })
 );
@@ -173,6 +176,8 @@ router.put(
       [name, category, description, price, quantity, location, imageUrl, req.params.id]
     );
 
+    // Live-update buyers' marketplace with the edited product.
+    emitGlobal("product:changed", {});
     return res.json({ product: rows[0] });
   })
 );
@@ -188,6 +193,8 @@ router.delete(
     if (!product) return res.status(404).json({ message: "Product not found." });
 
     await query("DELETE FROM products WHERE id = $1", [req.params.id]);
+    // Live-update buyers' marketplace with the removed product.
+    emitGlobal("product:changed", {});
     return res.json({ message: "Product deleted." });
   })
 );
