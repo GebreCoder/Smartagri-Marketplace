@@ -87,8 +87,11 @@ export default function DashboardShell({ role = "farmer" }) {
   const [cartCount, setCartCount] = useState(0);
   const [messagesCount, setMessagesCount] = useState(0);
   const [notificationsCount, setNotificationsCount] = useState(0);
+  const [priceAlerts, setPriceAlerts] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const notifRef = useRef(null);
   const [dark, setDark] = useState(() => {
     // Apply synchronously before first paint to avoid a flash of light theme.
     try {
@@ -110,6 +113,23 @@ export default function DashboardShell({ role = "farmer" }) {
     }
   }, [dark]);
 
+  // Close the notification panel on outside click or Escape.
+  useEffect(() => {
+    if (!notifOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (notifRef.current && !notifRef.current.contains(event.target)) setNotifOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setNotifOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [notifOpen]);
+
   const badges = { cart: cartCount, messages: messagesCount, notifications: notificationsCount };
 
   const loadBadges = useCallback(async () => {
@@ -118,7 +138,17 @@ export default function DashboardShell({ role = "farmer" }) {
         const { items } = await api.get("/api/cart");
         setCartCount(items.reduce((s, i) => s + Number(i.quantity || 0), 0));
         const { orders } = await api.get("/api/orders/buyer");
-        setNotificationsCount(orders.filter((o) => String(o.rawStatus).toLowerCase() === "pending").length);
+        const pendingOrders = orders.filter((o) => String(o.rawStatus).toLowerCase() === "pending").length;
+        // Price-drop alerts on favorited products feed the same bell.
+        let alertCount = 0;
+        try {
+          const { priceAlerts: alerts } = await api.get("/api/dashboard/buyer/insights");
+          setPriceAlerts(alerts || []);
+          alertCount = (alerts || []).length;
+        } catch {
+          /* bell still shows order notifications */
+        }
+        setNotificationsCount(pendingOrders + alertCount);
       } else {
         const { orders } = await api.get("/api/orders/farmer");
         setNotificationsCount(orders.filter((o) => String(o.rawStatus).toLowerCase() === "pending").length);
@@ -260,10 +290,55 @@ export default function DashboardShell({ role = "farmer" }) {
             <Link to={isBuyer ? "/buyer/favorites" : "/farmer/crops"} className="d2-hicon">
               <Icon name="heart-outline" size={19} />
             </Link>
-            <Link to={isBuyer ? "/buyer/orders" : "/farmer/orders"} className="d2-hicon">
-              <Icon name="notifications-outline" size={19} />
-              {notificationsCount > 0 && <span className="d2-hbadge d2-hbadge-red">{notificationsCount}</span>}
-            </Link>
+            <div className="d2-notif-wrap" ref={notifRef}>
+              <button
+                className="d2-hicon"
+                onClick={() => setNotifOpen((v) => !v)}
+                aria-label="Notifications"
+                aria-haspopup="menu"
+                aria-expanded={notifOpen}
+              >
+                <Icon name="notifications-outline" size={19} />
+                {notificationsCount > 0 && <span className="d2-hbadge d2-hbadge-red">{notificationsCount}</span>}
+              </button>
+              {notifOpen && (
+                <div className="d2-dropdown d2-notif-panel" role="menu">
+                  <div className="d2-notif-title">Notifications</div>
+                  {isBuyer && priceAlerts.length > 0 && (
+                    <>
+                      <div className="d2-notif-group">Price drop alerts</div>
+                      {priceAlerts.map((alert) => (
+                        <button
+                          className="d2-notif-item"
+                          key={alert.productId}
+                          onClick={() => {
+                            setNotifOpen(false);
+                            navigate(`/buyer/product-details/${alert.productId}`);
+                          }}
+                        >
+                          <img src={alert.image_url} alt={alert.name} />
+                          <div className="d2-notif-body">
+                            <div className="d2-notif-text">{alert.name} dropped to {alert.new_price_label}</div>
+                            <div className="d2-notif-sub">↓ {alert.drop_pct}% — tap to view</div>
+                          </div>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  <div className="d2-notif-group">{isBuyer ? "Order updates" : "Order updates"}</div>
+                  <button className="d2-notif-item d2-notif-link" onClick={() => { setNotifOpen(false); navigate(isBuyer ? "/buyer/orders" : "/farmer/orders"); }}>
+                    <Icon name="receipt-outline" size={16} />
+                    <div className="d2-notif-body">
+                      <div className="d2-notif-text">View your orders</div>
+                      <div className="d2-notif-sub">Track status, confirm delivery, report issues</div>
+                    </div>
+                  </button>
+                  {notificationsCount === 0 && (
+                    <div className="d2-notif-empty">You&apos;re all caught up ✨</div>
+                  )}
+                </div>
+              )}
+            </div>
             <Link to={isBuyer ? "/buyer/chat" : "/farmer/chat"} className="d2-hicon">
               <Icon name="chatbubbles-outline" size={19} />
               {messagesCount > 0 && <span className="d2-hbadge d2-hbadge-blue">{messagesCount}</span>}

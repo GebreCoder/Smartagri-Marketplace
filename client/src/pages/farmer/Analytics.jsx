@@ -19,6 +19,69 @@ const SUMMARY_ICONS = {
   acceptedOrders: { icon: "checkmark-circle-outline", color: "#10B981", label: "Fulfilled Orders" },
 };
 
+// Escape a cell for CSV (quotes, commas, newlines) and guard against
+// spreadsheet formula injection (values starting with = + - @).
+const csvCell = (value) => {
+  const text = String(value ?? "");
+  const guarded = /^[=+\-@]/.test(text.trimStart()) ? `'${text}` : text;
+  return /[,"\n]/.test(guarded) ? `"${guarded.replace(/"/g, "\"\"")}"` : guarded;
+};
+
+// Build + download a CSV report of the analytics data.
+const exportCsv = (data) => {
+  if (!data) return;
+  const { summary, topProducts, topBuyers, trend, categorySales, statusBreakdown } = data;
+  const rows = [];
+  const push = (cells) => rows.push(cells.map(csvCell).join(","));
+
+  push(["AgriSpark Farm Analytics Report"]);
+  push([`Generated ${new Date().toLocaleString()}`]);
+  push([]);
+  push(["Metric", "Value"]);
+  push(["Total Revenue", summary.totalRevenue_label]);
+  push(["Total Orders", summary.totalOrders]);
+  push(["Fulfilled Orders", summary.acceptedOrders]);
+  push(["Unique Buyers", summary.uniqueBuyers]);
+  push(["Repeat Customer Rate", `${summary.repeatRate}%`]);
+  push(["Avg Order Value", summary.avgOrderValue]);
+  push(["Fulfillment Rate", `${summary.fulfillmentRate}%`]);
+  push(["Total Harvested", summary.totalHarvest]);
+  push([]);
+
+  push(["Monthly Trend"]);
+  push(["Month", "Revenue (ETB)", "Orders"]);
+  trend.labels.forEach((label, i) => push([label, trend.revenue[i], trend.orders[i]]));
+  push([]);
+
+  push(["Top Products by Revenue"]);
+  push(["Product", "Category", "Orders", "Units Sold (kg)", "Revenue (ETB)", "Share %"]);
+  topProducts.forEach((p) => push([p.name, p.category, p.orders, p.units, p.revenue, p.share]));
+  push([]);
+
+  push(["Order Status"]);
+  statusBreakdown.forEach((s) => push([s.label, s.count]));
+  push([]);
+
+  push(["Sales by Category"]);
+  push(["Category", "Revenue (ETB)", "Share %"]);
+  categorySales.forEach((c) => push([c.category, c.value, c.pct]));
+  push([]);
+
+  push(["Top Buyers"]);
+  push(["Buyer", "Orders", "Spend (ETB)"]);
+  topBuyers.forEach((b) => push([b.name, b.orders, b.spend]));
+
+  const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `agrispark-analytics-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 export default function FarmerAnalytics() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -81,9 +144,14 @@ export default function FarmerAnalytics() {
           <div className="d2-title">Sales &amp; Analytics</div>
           <div className="d2-title-sub">Deep insights into your farm&apos;s performance</div>
         </div>
-        <button className="d2-btn-secondary" onClick={() => navigate("/farmer")}>
-          <Icon name="arrow-back-outline" size={15} /> Back to Dashboard
-        </button>
+        <div className="d2-analytics-actions">
+          <button className="d2-btn-secondary" onClick={() => exportCsv(data)}>
+            <Icon name="download-outline" size={15} /> Export CSV
+          </button>
+          <button className="d2-btn-secondary" onClick={() => navigate("/farmer")}>
+            <Icon name="arrow-back-outline" size={15} /> Back to Dashboard
+          </button>
+        </div>
       </div>
 
       <div className="d2-kpi-grid">
