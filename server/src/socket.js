@@ -134,8 +134,8 @@ export const emitMessageNew = ({ orderId, senderId, receiverId }) => {
 /**
  * Notify both participants + the conversation room of a new direct message.
  */
-export const emitDirectMessage = ({ conversationId, senderId, receiverId }) => {
-  const payload = { conversationId };
+export const emitDirectMessage = ({ conversationId, senderId, receiverId, message, imageUrl, senderName }) => {
+  const payload = { conversationId, senderId, message, imageUrl, senderName };
   if (ioRef && conversationId) ioRef.to(`conversation:${String(conversationId)}`).emit("message:new", payload);
   emitToUser(senderId, "message:new", payload);
   emitToUser(receiverId, "message:new", payload);

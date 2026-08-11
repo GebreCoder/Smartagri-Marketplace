@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Icon from "../Icon.jsx";
-import { api } from "../api.js";
+import { api, uploadImage } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { Spinner } from "../components/Spinner.jsx";
 import { getSocket } from "../socket.js";
@@ -12,6 +12,8 @@ const EMOJI = [
   "🍅", "🥔", "🧅", "🍎", "🥑", "🌻", "☀️", "🌧️", "☁️", "💧",
   "🚜", "🐄", "🐔", "🐑", "💰", "📦", "🛒", "❤️", "🎉", "✅",
 ];
+
+const SOUND_KEY = "agrispark_msg_sound";
 
 const getInitials = (name) =>
   String(name || "?")
@@ -46,7 +48,7 @@ const fmtDay = (value) => {
 /** Highlight the query inside a message with <mark>. */
 const Highlight = ({ text, query }) => {
   if (!query) return text;
-  const lower = String(text).toLowerCase();
+  const lower = String(text || "").toLowerCase();
   const idx = lower.indexOf(query.toLowerCase());
   if (idx === -1) return text;
   return (
@@ -56,6 +58,30 @@ const Highlight = ({ text, query }) => {
       {text.slice(idx + query.length)}
     </>
   );
+};
+
+/** Tiny Web-Audio chime so no audio asset is needed. */
+let audioCtx = null;
+const playChime = () => {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const now = audioCtx.currentTime;
+    [880, 1174].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, now + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.12, now + i * 0.12 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 0.35);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now + i * 0.12);
+      osc.stop(now + i * 0.12 + 0.4);
+    });
+  } catch {
+    /* audio unavailable — ignore */
+  }
 };
 
 export default function Messenger() {
@@ -70,14 +96,26 @@ export default function Messenger() {
   const [thread, setThread] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("chats"); // 'chats' | 'contacts'
+  const [filter, setFilter] = useState("all"); // 'all' | 'unread'
   const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [mobileThread, setMobileThread] = useState(false);
   const [onlineIds, setOnlineIds] = useState(() => new Set());
   const [typingUserId, setTypingUserId] = useState(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => {
+    try {
+      return localStorage.getItem(SOUND_KEY) !== "off";
+    } catch {
+      return true;
+    }
+  });
   const [readReceipts, setReadReceipts] = useState(() => (user?.read_receipts !== false));
   const [threadSearchOpen, setThreadSearchOpen] = useState(false);
   const [threadSearch, setThreadSearch] = useState("");
@@ -85,19 +123,27 @@ export default function Messenger() {
 
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const fileRef = useRef(null);
   const menuRef = useRef(null);
+  const emojiWrapRef = useRef(null);
   const typingTimerRef = useRef(null);
   const lastTypingRef = useRef(0);
+  const searchDebounceRef = useRef(null);
+  const conversationsSeqRef = useRef(0);
 
   const myRole = String(user?.role || "").toLowerCase().split("_")[0];
   const contactRole = myRole === "farmer" ? "buyer" : myRole === "buyer" ? "farmer" : "all";
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (q = "") => {
+    const seq = ++conversationsSeqRef.current;
     try {
-      const { conversations: data } = await api.get("/api/chat/direct");
-      setConversations(data || []);
+      const url = q ? `/api/chat/direct?q=${encodeURIComponent(q)}` : "/api/chat/direct";
+      const { conversations: data } = await api.get(url);
+      // Drop stale responses so a slower unfiltered fetch can't overwrite a
+      // newer filtered search result (last-write-wins race guard).
+      if (seq === conversationsSeqRef.current) setConversations(data || []);
     } catch {
-      setConversations([]);
+      if (seq === conversationsSeqRef.current) setConversations([]);
     }
   }, []);
 
@@ -123,7 +169,30 @@ export default function Messenger() {
   useEffect(() => {
     setLoading(true);
     Promise.all([loadConversations(), loadContacts()]).finally(() => setLoading(false));
+    return () => clearTimeout(searchDebounceRef.current);
   }, [loadConversations, loadContacts]);
+
+  // Ask for browser-notification permission on first interaction.
+  useEffect(() => {
+    const onFirstGesture = () => {
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
+      }
+      window.removeEventListener("pointerdown", onFirstGesture);
+    };
+    window.addEventListener("pointerdown", onFirstGesture);
+    return () => window.removeEventListener("pointerdown", onFirstGesture);
+  }, []);
+
+  // Debounced global search across conversations (server searches message text too).
+  const handleSearchChange = (value) => {
+    setSearch(value);
+    clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setAppliedSearch(value.trim());
+      loadConversations(value.trim());
+    }, 350);
+  };
 
   // Deep-link support: ?conversation=<id> opens a chat, ?userId=<id> starts one.
   useEffect(() => {
@@ -150,6 +219,7 @@ export default function Messenger() {
   useEffect(() => {
     setTypingUserId(null);
     setEmojiOpen(false);
+    setProfileOpen(false);
     if (!activeConvId) {
       setThread(null);
       return;
@@ -157,20 +227,33 @@ export default function Messenger() {
     loadThread(activeConvId);
   }, [activeConvId, loadThread]);
 
-  // Realtime: new direct message refreshes list + open thread.
+  // Realtime: new direct message refreshes list + open thread + notifies.
   useEffect(() => {
     const socket = getSocket();
     const onMessageNew = (payload) => {
-      loadConversations();
+      const isSelf = String(payload.senderId) === selfId;
+      loadConversations(appliedSearch);
       if (String(payload.conversationId) === String(activeConvId)) {
         loadThread(activeConvId);
+      }
+      if (!isSelf && payload.conversationId) {
+        if (soundOn) playChime();
+        if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+          const name = payload.senderName || "New message";
+          const body = payload.imageUrl && !payload.message ? "📷 Photo" : payload.message || "";
+          try {
+            new Notification(name, { body, icon: "/images/logo-1.png" });
+          } catch {
+            /* notifications unsupported */
+          }
+        }
       }
     };
     socket.on("message:new", onMessageNew);
     return () => {
       socket.off("message:new", onMessageNew);
     };
-  }, [activeConvId, loadConversations, loadThread]);
+  }, [activeConvId, appliedSearch, loadConversations, loadThread, selfId, soundOn]);
 
   // Online presence — live updates from the socket, seeded from server snapshots.
   useEffect(() => {
@@ -242,9 +325,8 @@ export default function Messenger() {
   }, [thread?.messages?.length]);
 
   // Close the thread menu or emoji panel on outside click / Escape.
-  const emojiWrapRef = useRef(null);
   useEffect(() => {
-    if (!menuOpen && !emojiOpen) return undefined;
+    if (!menuOpen && !emojiOpen && !profileOpen) return undefined;
     const onPointerDown = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) setMenuOpen(false);
       if (emojiWrapRef.current && !emojiWrapRef.current.contains(event.target)) setEmojiOpen(false);
@@ -253,6 +335,8 @@ export default function Messenger() {
       if (event.key === "Escape") {
         setMenuOpen(false);
         setEmojiOpen(false);
+        setProfileOpen(false);
+        setLightbox(null);
       }
     };
     document.addEventListener("pointerdown", onPointerDown);
@@ -261,7 +345,7 @@ export default function Messenger() {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [menuOpen, emojiOpen]);
+  }, [menuOpen, emojiOpen, profileOpen]);
 
   const startConversation = async (contact) => {
     try {
@@ -269,7 +353,7 @@ export default function Messenger() {
       setActiveConvId(conversation.id);
       setTab("chats");
       setMobileThread(true);
-      await loadConversations();
+      await loadConversations(appliedSearch);
       setTimeout(() => inputRef.current?.focus(), 80);
     } catch (err) {
       alert(err.message || "Could not start the conversation.");
@@ -300,21 +384,43 @@ export default function Messenger() {
     if (activeConvId) getSocket().emit("typing:stop", activeConvId);
   };
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    const text = message.trim();
-    if (!text || !activeConvId || sending) return;
+  const postMessage = async (text, imageUrl) => {
+    // Note: `uploading` is intentionally not in the guard — handleAttach
+    // sets it true before calling postMessage with a freshly uploaded URL.
+    if (!activeConvId || sending) return;
     setSending(true);
     try {
       stopTyping();
-      await api.post(`/api/chat/direct/${activeConvId}/messages`, { message: text });
+      await api.post(`/api/chat/direct/${activeConvId}/messages`, { message: text, imageUrl });
       setMessage("");
       setEmojiOpen(false);
-      await Promise.all([loadConversations(), loadThread(activeConvId)]);
+      await Promise.all([loadConversations(appliedSearch), loadThread(activeConvId)]);
     } catch (err) {
       alert(err.message || "Could not send the message.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const sendMessage = (e) => {
+    e.preventDefault();
+    const text = message.trim();
+    if (!text || !activeConvId || sending) return;
+    postMessage(text, null);
+  };
+
+  const handleAttach = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !activeConvId || uploading) return;
+    setUploading(true);
+    try {
+      const { url } = await uploadImage(file);
+      await postMessage("", url);
+    } catch (err) {
+      alert(err.message || "Could not upload the image.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -329,11 +435,21 @@ export default function Messenger() {
     }
   };
 
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    setMenuOpen(false);
+    try {
+      localStorage.setItem(SOUND_KEY, next ? "on" : "off");
+    } catch {
+      /* ignore */
+    }
+  };
+
   const filteredConversations = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return conversations;
-    return conversations.filter((c) => c.partner?.full_name?.toLowerCase().includes(q));
-  }, [conversations, search]);
+    if (filter === "unread") return conversations.filter((c) => Number(c.unread || 0) > 0);
+    return conversations;
+  }, [conversations, filter]);
 
   const filteredContacts = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -353,7 +469,7 @@ export default function Messenger() {
   const searchMatches = useMemo(() => {
     const q = threadSearch.trim().toLowerCase();
     if (!q) return [];
-    return messages.map((m, i) => ({ m, i })).filter(({ m }) => m.message.toLowerCase().includes(q));
+    return messages.map((m, i) => ({ m, i })).filter(({ m }) => String(m.message || "").toLowerCase().includes(q));
   }, [messages, threadSearch]);
 
   // Scroll to the current search match (declared after searchMatches).
@@ -373,6 +489,11 @@ export default function Messenger() {
   const isPartnerOnline = activePartner ? onlineIds.has(String(activePartner.id)) : false;
   const isTyping = typingUserId && String(typingUserId) !== selfId && String(typingUserId) === String(activePartner?.id);
 
+  const openProfile = () => {
+    setMenuOpen(false);
+    setProfileOpen(true);
+  };
+
   return (
     <div className="msg-app">
       {/* ── Left pane: conversations / contacts ── */}
@@ -391,11 +512,26 @@ export default function Messenger() {
             <Icon name="search-outline" size={15} color="#94A3B8" />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={tab === "chats" ? "Search conversations..." : `Search ${contactRole === "all" ? "users" : contactRole + "s"}...`}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder={tab === "chats" ? "Search chats & messages..." : `Search ${contactRole === "all" ? "users" : contactRole + "s"}...`}
               aria-label="Search"
             />
           </div>
+          {tab === "chats" && (
+            <div className="msg-filters">
+              <button className={`msg-filter${filter === "all" ? " active" : ""}`} onClick={() => setFilter("all")}>
+                All
+              </button>
+              <button className={`msg-filter${filter === "unread" ? " active" : ""}`} onClick={() => setFilter("unread")}>
+                Unread
+                {conversations.some((c) => Number(c.unread || 0) > 0) && (
+                  <span className="msg-filter-count">
+                    {conversations.reduce((s, c) => s + Number(c.unread || 0), 0)}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="msg-list">
@@ -423,7 +559,9 @@ export default function Messenger() {
                       <span className="msg-item-time">{conv.time}</span>
                     </span>
                     <span className="msg-item-bottom">
-                      <span className="msg-item-last">{conv.lastMessage || "Start the conversation…"}</span>
+                      <span className="msg-item-last">
+                        <Highlight text={conv.lastMessage || "Start the conversation…"} query={appliedSearch} />
+                      </span>
                       {Number(conv.unread) > 0 && <span className="msg-unread">{conv.unread}</span>}
                     </span>
                   </span>
@@ -432,7 +570,7 @@ export default function Messenger() {
             ) : (
               <div className="msg-empty">
                 <Icon name="chatbubbles-outline" size={30} color="#94A3B8" />
-                <p>No conversations yet.</p>
+                <p>{appliedSearch ? `No chats match “${appliedSearch}”.` : "No conversations yet."}</p>
                 <button className="d2-btn-primary-sm" onClick={() => setTab("contacts")}>Find people to chat with</button>
               </div>
             )
@@ -478,27 +616,29 @@ export default function Messenger() {
               <button className="msg-back" onClick={backToList} aria-label="Back to conversations">
                 <Icon name="arrow-back-outline" size={18} />
               </button>
-              <span className="msg-avatar msg-avatar-lg">
-                {activePartner.image_url ? (
-                  <img src={activePartner.image_url} alt={activePartner.full_name} />
-                ) : (
-                  <span className="msg-avatar-init">{getInitials(activePartner.full_name)}</span>
-                )}
-                {isPartnerOnline && <span className="msg-online-dot" />}
-              </span>
-              <div className="grow">
-                <div className="msg-thread-name">{activePartner.full_name}</div>
-                <div className="msg-thread-sub">
-                  {isTyping ? (
-                    <span className="msg-typing">typing<span className="msg-typing-dots">…</span></span>
+              <button className="msg-thread-profile" onClick={openProfile} aria-label="View profile">
+                <span className="msg-avatar msg-avatar-lg">
+                  {activePartner.image_url ? (
+                    <img src={activePartner.image_url} alt={activePartner.full_name} />
                   ) : (
-                    <>
-                      <span className={`msg-role-dot ${activePartner.role}${isPartnerOnline ? " online" : ""}`} />
-                      {isPartnerOnline ? "Online" : `${activePartner.role === "farmer" ? "Farmer" : "Buyer"} · ${activePartner.location || "Ethiopia"}`}
-                    </>
+                    <span className="msg-avatar-init">{getInitials(activePartner.full_name)}</span>
                   )}
-                </div>
-              </div>
+                  {isPartnerOnline && <span className="msg-online-dot" />}
+                </span>
+                <span className="grow">
+                  <span className="msg-thread-name">{activePartner.full_name}</span>
+                  <span className="msg-thread-sub">
+                    {isTyping ? (
+                      <span className="msg-typing">typing<span className="msg-typing-dots">…</span></span>
+                    ) : (
+                      <>
+                        <span className={`msg-role-dot ${activePartner.role}${isPartnerOnline ? " online" : ""}`} />
+                        {isPartnerOnline ? "Online" : `${activePartner.role === "farmer" ? "Farmer" : "Buyer"} · ${activePartner.location || "Ethiopia"}`}
+                      </>
+                    )}
+                  </span>
+                </span>
+              </button>
               <button
                 className="msg-thread-action"
                 onClick={() => setThreadSearchOpen((v) => !v)}
@@ -513,6 +653,13 @@ export default function Messenger() {
                 </button>
                 {menuOpen && (
                   <div className="msg-thread-menu">
+                    <button onClick={openProfile}>
+                      <Icon name="person-outline" size={15} /> View profile
+                    </button>
+                    <button onClick={toggleSound}>
+                      <Icon name={soundOn ? "volume-high-outline" : "volume-mute-outline"} size={15} color={soundOn ? "#16A34A" : "#94A3B8"} />
+                      Message sounds: {soundOn ? "On" : "Off"}
+                    </button>
                     <button onClick={toggleReadReceipts}>
                       <Icon
                         name={readReceipts ? "checkmark-circle-outline" : "ellipsis-horizontal-outline"}
@@ -556,14 +703,27 @@ export default function Messenger() {
                 const isOut = String(msg.sender_id) === selfId;
                 const prev = messages[index - 1];
                 const showDay = !prev || fmtDay(prev.created_at) !== fmtDay(msg.created_at);
+                const isImage = Boolean(msg.image_url);
                 return (
                   <div key={msg.id} id={`msg-${msg.id}`}>
                     {showDay && <div className="msg-day-divider">{fmtDay(msg.created_at)}</div>}
                     <div className={`msg-bubble-wrap ${isOut ? "out" : "in"}`}>
-                      <div className={`msg-bubble${isOut ? " out" : ""}`}>
-                        <div className="msg-bubble-text">
-                          <Highlight text={msg.message} query={threadSearchOpen ? threadSearch : ""} />
-                        </div>
+                      <div className={`msg-bubble${isOut ? " out" : ""}${isImage ? " is-image" : ""}`}>
+                        {isImage && (
+                          <button
+                            type="button"
+                            className="msg-bubble-img"
+                            onClick={() => setLightbox(msg.image_url)}
+                            aria-label="Open image"
+                          >
+                            <img src={msg.image_url} alt="" loading="lazy" />
+                          </button>
+                        )}
+                        {msg.message && (
+                          <div className="msg-bubble-text">
+                            <Highlight text={msg.message} query={threadSearchOpen ? threadSearch : ""} />
+                          </div>
+                        )}
                         <div className="msg-bubble-meta">
                           {fmtTime(msg.created_at)}
                           {isOut && (
@@ -609,6 +769,24 @@ export default function Messenger() {
                   </div>
                 )}
               </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={handleAttach}
+                aria-label="Attach image"
+              />
+              <button
+                type="button"
+                className="msg-emoji-btn"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                aria-label="Attach image"
+                title="Attach photo"
+              >
+                {uploading ? <Spinner size={18} /> : <Icon name="image-outline" size={19} />}
+              </button>
               <div className="msg-input-wrap">
                 <input
                   ref={inputRef}
@@ -619,7 +797,7 @@ export default function Messenger() {
                   aria-label="Message"
                 />
               </div>
-              <button className="msg-send" type="submit" disabled={!message.trim() || sending} aria-label="Send message">
+              <button className="msg-send" type="submit" disabled={!message.trim() || sending || uploading} aria-label="Send message">
                 {sending ? <Spinner light size={17} /> : <Icon name="send" size={17} />}
               </button>
             </form>
@@ -637,6 +815,68 @@ export default function Messenger() {
           </div>
         )}
       </section>
+
+      {/* ── Contact profile slide-over ── */}
+      {profileOpen && activePartner && (
+        <div className="msg-profile-overlay" onPointerDown={() => setProfileOpen(false)}>
+          <div className="msg-profile" onPointerDown={(e) => e.stopPropagation()}>
+            <div className="msg-profile-head">
+              <button className="msg-thread-action" onClick={() => setProfileOpen(false)} aria-label="Close profile">
+                <Icon name="close-outline" size={18} />
+              </button>
+            </div>
+            <div className="msg-profile-avatar">
+              {activePartner.image_url ? (
+                <img src={activePartner.image_url} alt={activePartner.full_name} />
+              ) : (
+                <span className="msg-avatar-init">{getInitials(activePartner.full_name)}</span>
+              )}
+              {isPartnerOnline && <span className="msg-online-dot" />}
+            </div>
+            <div className="msg-profile-name">{activePartner.full_name}</div>
+            <div className="msg-profile-role">
+              <span className={`msg-role-dot ${activePartner.role}${isPartnerOnline ? " online" : ""}`} />
+              {isPartnerOnline ? "Online now" : "Offline"} · {activePartner.role === "farmer" ? "Farmer" : "Buyer"}
+            </div>
+            <div className="msg-profile-meta">
+              <Icon name="location-outline" size={14} color="#64748B" />
+              {activePartner.location || "Ethiopia"}
+            </div>
+            {activePartner.biography && (
+              <div className="msg-profile-bio">{activePartner.biography}</div>
+            )}
+            <div className="msg-profile-actions">
+              {activePartner.role === "farmer" && myRole === "buyer" && (
+                <button
+                  className="d2-btn-primary"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    navigate(`/buyer/marketplace?search=${encodeURIComponent(activePartner.full_name)}`);
+                  }}
+                >
+                  <Icon name="storefront-outline" size={16} /> View products
+                </button>
+              )}
+              <button
+                className="d2-btn-secondary"
+                onClick={() => { setProfileOpen(false); inputRef.current?.focus(); }}
+              >
+                <Icon name="chatbubble-ellipses-outline" size={16} /> Send message
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Image lightbox ── */}
+      {lightbox && (
+        <div className="msg-lightbox" onPointerDown={() => setLightbox(null)}>
+          <img src={lightbox} alt="" onClick={(e) => e.stopPropagation()} />
+          <button className="msg-lightbox-close" onClick={() => setLightbox(null)} aria-label="Close image">
+            <Icon name="close-outline" size={20} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

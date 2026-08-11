@@ -340,10 +340,11 @@ router.get(
 );
 
 // ── My direct conversations ────────────────────────────────────────
-// GET /api/chat/direct
+// GET /api/chat/direct?q=<search across messages>
 router.get(
   "/direct",
   asyncHandler(async (req, res) => {
+    const q = normalizeText(req.query.q);
     const { rows } = await query(
       `SELECT c.id, c.user_a, c.user_b, c.created_at, c.last_message_at,
               partner.id AS partner_id,
@@ -352,7 +353,8 @@ router.get(
               partner.role AS partner_role,
               partner.location AS partner_location,
               partner.profile_image_url AS partner_image,
-              (SELECT message FROM messages m
+              (SELECT COALESCE(NULLIF(m.message, ''), CASE WHEN m.image_url IS NOT NULL THEN '📷 Photo' ELSE '' END)
+                FROM messages m
                 WHERE m.conversation_id = c.id
                 ORDER BY m.created_at DESC LIMIT 1) AS last_message,
               (SELECT created_at FROM messages m
@@ -364,9 +366,19 @@ router.get(
        FROM conversations c
        JOIN users partner
          ON partner.id = CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END
-       WHERE c.user_a = $1 OR c.user_b = $1
+       WHERE (c.user_a = $1 OR c.user_b = $1)
+         AND (
+           $2 = '' OR
+           LOWER(COALESCE(partner.full_name, '')) LIKE '%' || LOWER($2) || '%' OR
+           LOWER(COALESCE(partner.business_name, '')) LIKE '%' || LOWER($2) || '%' OR
+           EXISTS (
+             SELECT 1 FROM messages m
+             WHERE m.conversation_id = c.id
+               AND LOWER(COALESCE(m.message, '')) LIKE '%' || LOWER($2) || '%'
+           )
+         )
        ORDER BY COALESCE(c.last_message_at, c.created_at) DESC`,
-      [req.user.id]
+      [req.user.id, q]
     );
 
     return res.json({
@@ -458,7 +470,7 @@ router.get(
     );
 
     const { rows: messages } = await query(
-      `SELECT id, conversation_id, sender_id, receiver_id, message, created_at, is_read
+      `SELECT id, conversation_id, sender_id, receiver_id, message, image_url, created_at, is_read
        FROM messages
        WHERE conversation_id = $1
        ORDER BY created_at ASC`,
@@ -478,6 +490,7 @@ router.get(
         sender_id: m.sender_id,
         receiver_id: m.receiver_id,
         message: m.message,
+        image_url: resolveImageUrl(m.image_url),
         created_at: m.created_at,
         // Outgoing messages show a read tick only if the partner sends receipts.
         is_read: String(m.sender_id) === selfId && !partnerSendsReceipts ? false : m.is_read,
@@ -487,13 +500,17 @@ router.get(
 );
 
 // ── Send a direct message ──────────────────────────────────────────
-// POST /api/chat/direct/:conversationId/messages  body: { message }
+// POST /api/chat/direct/:conversationId/messages  body: { message?, imageUrl? }
 router.post(
   "/direct/:conversationId/messages",
   asyncHandler(async (req, res) => {
     const conversationId = normalizeText(req.params.conversationId);
     const text = normalizeText(req.body.message);
-    if (!text) return res.status(400).json({ message: "Message cannot be empty." });
+    const rawImageUrl = normalizeText(req.body.imageUrl) || null;
+    // Only allow same-origin uploaded images or plain http(s) URLs.
+    const imageUrl =
+      rawImageUrl && /^(https?:\/\/|\/uploads\/)/i.test(rawImageUrl) ? rawImageUrl : null;
+    if (!text && !imageUrl) return res.status(400).json({ message: "Message cannot be empty." });
 
     const { rows: convRows } = await query(
       "SELECT * FROM conversations WHERE id = $1",
@@ -513,14 +530,21 @@ router.post(
       String(conversation.user_a) === selfId ? conversation.user_b : conversation.user_a;
 
     const { rows } = await query(
-      `INSERT INTO messages (conversation_id, sender_id, receiver_id, message)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, conversation_id, sender_id, receiver_id, message, created_at, is_read`,
-      [conversationId, req.user.id, receiverId, text]
+      `INSERT INTO messages (conversation_id, sender_id, receiver_id, message, image_url)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, conversation_id, sender_id, receiver_id, message, image_url, created_at, is_read`,
+      [conversationId, req.user.id, receiverId, text, imageUrl]
     );
     await query("UPDATE conversations SET last_message_at = now() WHERE id = $1", [conversationId]);
 
-    emitDirectMessage({ conversationId, senderId: req.user.id, receiverId });
+    emitDirectMessage({
+      conversationId,
+      senderId: req.user.id,
+      receiverId,
+      message: text,
+      imageUrl,
+      senderName: getProfileName(req.user, "User"),
+    });
 
     return res.status(201).json({ message: rows[0] });
   })

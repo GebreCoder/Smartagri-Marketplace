@@ -12,11 +12,12 @@ export default function Marketplace() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialCategory = searchParams.get("category") || "All";
+  const initialSearch = searchParams.get("search") || "";
 
   const [products, setProducts] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [search, setSearch] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
+  const [appliedSearch, setAppliedSearch] = useState(initialSearch);
   const [category, setCategory] = useState(initialCategory);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);

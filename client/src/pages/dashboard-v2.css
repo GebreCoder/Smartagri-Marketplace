@@ -3546,3 +3546,290 @@ mark.msg-match {
 [data-theme="dark"] .msg-online-dot {
   border-color: var(--d2-white, #101513);
 }
+
+/* ── Messenger: unread filter chips ── */
+.msg-filters {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.msg-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  color: #475569;
+  font-size: 11.5px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.msg-filter:hover {
+  border-color: #16A34A;
+  color: #15803D;
+}
+
+.msg-filter.active {
+  background: #16A34A;
+  border-color: #16A34A;
+  color: #FFFFFF;
+}
+
+.msg-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #DC2626;
+  color: #FFF;
+  font-size: 10px;
+  padding: 0 4px;
+}
+
+/* ── Messenger: image bubbles ── */
+.msg-bubble.is-image {
+  padding: 4px;
+  overflow: hidden;
+}
+
+.msg-bubble-img {
+  display: block;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: zoom-in;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.msg-bubble-img img {
+  display: block;
+  max-width: 240px;
+  max-height: 260px;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.msg-bubble.is-image .msg-bubble-text {
+  padding: 6px 8px 2px;
+}
+
+.msg-bubble.is-image .msg-bubble-meta {
+  padding: 4px 8px 6px;
+}
+
+/* ── Messenger: clickable thread header profile ── */
+.msg-thread-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 10px;
+}
+
+.msg-thread-profile .msg-thread-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Messenger: contact profile slide-over ── */
+.msg-profile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 100;
+  display: flex;
+  justify-content: flex-end;
+  animation: msg-fade-in .18s ease;
+}
+
+@keyframes msg-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.msg-profile {
+  width: 340px;
+  max-width: 92vw;
+  height: 100%;
+  background: #FFFFFF;
+  box-shadow: -16px 0 40px rgba(15, 23, 42, 0.18);
+  padding: 16px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  animation: msg-slide-in .2s ease;
+}
+
+@keyframes msg-slide-in {
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.msg-profile-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.msg-profile-avatar {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  margin: 8px auto 14px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #EEF2F0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 900;
+  color: #16A34A;
+}
+
+.msg-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.msg-profile-avatar .msg-online-dot {
+  right: 4px;
+  bottom: 4px;
+  width: 18px;
+  height: 18px;
+  border-width: 3px;
+}
+
+.msg-profile-name {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 900;
+  color: #0F172A;
+}
+
+.msg-profile-role {
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #64748B;
+  margin-top: 6px;
+}
+
+.msg-profile-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #475569;
+  margin-top: 12px;
+  font-weight: 600;
+}
+
+.msg-profile-bio {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #F8FAFC;
+  border: 1px solid #E8EDEB;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.msg-profile-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+/* ── Messenger: image lightbox ── */
+.msg-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.88);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+  padding: 24px;
+  animation: msg-fade-in .18s ease;
+}
+
+.msg-lightbox img {
+  max-width: 92vw;
+  max-height: 88vh;
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+
+.msg-lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.14);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.msg-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+/* Dark mode additions */
+[data-theme="dark"] .msg-filter {
+  background: var(--d2-white, #101513);
+  border-color: var(--d2-line, #26302B);
+  color: #94A3B8;
+}
+
+[data-theme="dark"] .msg-filter.active {
+  background: #16A34A;
+  border-color: #16A34A;
+  color: #FFFFFF;
+}
+
+[data-theme="dark"] .msg-profile,
+[data-theme="dark"] .msg-bubble.is-image {
+  background: var(--d2-white, #101513);
+}
+
+[data-theme="dark"] .msg-profile-name {
+  color: var(--d2-ink, #F1F5F9);
+}
+
+[data-theme="dark"] .msg-profile-bio {
+  background: #1E2925;
+  border-color: var(--d2-line, #26302B);
+  color: #CBD5E1;
+}

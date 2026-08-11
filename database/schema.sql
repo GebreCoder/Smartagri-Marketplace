@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS messages (
   sender_id       uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   receiver_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   message         text NOT NULL,
+  image_url       text,
   created_at      timestamptz NOT NULL DEFAULT now(),
   is_read         boolean NOT NULL DEFAULT false,
   CONSTRAINT messages_target_check CHECK ((order_id IS NOT NULL) <> (conversation_id IS NOT NULL))
