@@ -5,10 +5,12 @@ import { asyncHandler } from "../middleware/error.js";
 import { getWeather } from "../services/weather.js";
 import { farmerInsights, buyerInsights, generateAiParagraph } from "../services/insights.js";
 import {
+  buildOrderSteps,
   capitalize,
   formatDateTime,
   getProfileName,
   normalizeText,
+  ORDER_STATUS_LABEL,
   shapeProduct,
   toDisplayOrderId,
 } from "../utils.js";
@@ -28,6 +30,7 @@ const PRODUCT_COLUMNS = `
 
 const ORDER_SELECT = `
   SELECT o.id, o.buyer_id, o.product_id, o.quantity, o.status, o.created_at,
+         o.delivery_method, o.delivery_address, o.delivery_notes, o.delivery_fee,
          p.id AS p_id, p.farmer_id, p.name, p.category, p.description, p.price,
          p.quantity AS p_quantity, p.location AS p_location, p.image_url AS p_image_url,
          p.created_at AS p_created_at,
@@ -61,7 +64,8 @@ const shapeOrderRow = (row) => {
 
   const quantity = Math.max(1, Number(row.quantity || 1));
   const price = Number(product?.price || 0);
-  const total = price * quantity;
+  const deliveryFee = Math.max(0, Number(row.delivery_fee || 0));
+  const total = price * quantity + deliveryFee;
 
   return {
     id: row.id,
@@ -374,8 +378,8 @@ router.get(
       }));
 
     // ── Order status breakdown ──
-    const statusColors = { pending: "#F59E0B", accepted: "#16A34A", rejected: "#DC2626" };
-    const statusCounts = { pending: 0, accepted: 0, rejected: 0 };
+    const statusColors = { pending: "#F59E0B", accepted: "#16A34A", rejected: "#DC2626", cancelled: "#94A3B8", delivered: "#0D9488", completed: "#10B981" };
+    const statusCounts = { pending: 0, accepted: 0, rejected: 0, cancelled: 0, delivered: 0, completed: 0 };
     orders.forEach((o) => {
       if (statusCounts[o.rawStatus] !== undefined) statusCounts[o.rawStatus] += 1;
     });
@@ -510,8 +514,19 @@ router.get(
       })
     );
 
-    const acceptedTotal = orders.filter((o) => o.rawStatus === "accepted").reduce((s, o) => s + Number(o.total || 0), 0);
-    const activeOrders = orders.filter((o) => o.rawStatus !== "rejected");
+    const { rows: succeededPayments } = await query(
+      `SELECT order_ids FROM payments WHERE buyer_id = $1 AND status IN ('succeeded', 'awaiting_settlement', 'settled', 'partially_refunded')`,
+      [buyerId]
+    );
+    const paidSet = new Set();
+    succeededPayments.forEach((row) => {
+      (Array.isArray(row.order_ids) ? row.order_ids : []).forEach((id) => paidSet.add(String(id)));
+    });
+
+    const isSale = (o) => ["accepted", "delivered", "completed"].includes(o.rawStatus);
+    const acceptedTotal = orders.filter(isSale).reduce((s, o) => s + Number(o.total || 0), 0);
+    const ACTIVE_STATUSES = new Set(["pending", "accepted", "delivered"]);
+    const activeOrders = orders.filter((o) => ACTIVE_STATUSES.has(o.rawStatus));
     const savedProducts = favorites.filter((f) => f.product_id).length;
     const favoriteFarmers = favorites.filter((f) => f.farmer_id).length;
 
@@ -543,17 +558,17 @@ router.get(
       }));
 
     // ── Active orders with progress steps ──
-    const STEPS = ["Ordered", "Confirmed", "Preparing", "Shipped", "Delivered"];
     const activeOrderList = activeOrders.slice(0, 3).map((o) => {
-      const statusIndex = o.rawStatus === "accepted" ? 3 : 1;
+      const isPaid = paidSet.has(String(o.id));
+      const tracker = buildOrderSteps(o.rawStatus, isPaid);
       const est = new Date(new Date(o.created_at).getTime() + 3 * 24 * 60 * 60 * 1000);
       return {
         displayId: toDisplayOrderId(o.id),
         product: o.product_name,
         quantity: `${o.quantity} kg`,
         amount: o.total_label,
-        status: STEPS[statusIndex],
-        steps: STEPS.map((s, i) => ({ label: s, done: i <= statusIndex, current: i === statusIndex })),
+        status: ORDER_STATUS_LABEL[o.rawStatus] || o.status,
+        steps: tracker.steps,
         est_delivery: `Est. delivery ${est.toLocaleDateString([], { month: "short", day: "numeric" })}`,
         image_url: o.image_url || FALLBACK_IMAGE,
       };

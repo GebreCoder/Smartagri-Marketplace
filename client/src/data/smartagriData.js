@@ -1,25 +1,25 @@
-// ─── AgriSpark Static Data ───────────────────────────────────────
-// Import what you need: import { PRICES, GREETING_FLOWS, ... } from './agriSparkData';
+// ─── SmartAgri Static Data ───────────────────────────────────────
+// Import what you need: import { PRICES, GREETING_FLOWS, ... } from './smartagriData';
 
 // ─── GREETING FLOWS (per language) ──────────────────────────────
 export const GREETING_FLOWS = {
   en: [
-    { text: "Selam! 👋 Welcome to AgriSpark.", delay: 600, typing: 800 },
+    { text: "Selam! 👋 Welcome to SmartAgri.", delay: 600, typing: 800 },
     { text: "I'm your AI assistant for Ethiopia's agricultural marketplace — here to help buyers, farmers, and anyone in between. 🌾", delay: 1200, typing: 1100 },
     { text: "Before we start — are you a **Buyer** looking to order, or a **Farmer** wanting to sell?", delay: 1400, typing: 900, showRoles: true },
   ],
   am: [
-    { text: "ሰላም! 👋 ወደ AgriSpark እንኳን ደህና መጡ።", delay: 600, typing: 800 },
+    { text: "ሰላም! 👋 ወደ SmartAgri እንኳን ደህና መጡ።", delay: 600, typing: 800 },
     { text: "እኔ የኢትዮጵያ የግብርና ዲጂታል ገበያ AI ረዳትዎ ነኝ — ለገዢዎች፣ ለገበሬዎች እና ለሁሉም ሰው ሕዝቤ ነኝ። 🌾", delay: 1200, typing: 1100 },
     { text: "ከምንጀምር በፊት — ትዕዛዝ ለመስጠት የመጡ **ገዢ** ነዎት፣ ወይስ ምርት ለሚሸጥ **ገበሬ**?", delay: 1400, typing: 900, showRoles: true },
   ],
   oro: [
-    { text: "Nagaatti! 👋 AgriSpark isin simata.", delay: 600, typing: 800 },
+    { text: "Nagaatti! 👋 SmartAgri isin simata.", delay: 600, typing: 800 },
     { text: "Ani AI gargaaraa gabaa qonnaa Itoophiyaa kee — bittootaaf, qonnaan bulootaaf, hundaaf dhaabbadha. 🌾", delay: 1200, typing: 1100 },
     { text: "Jalqabuuf — **Bitaa** ajaja kennu barbaadaa, moo **Qonnaan bulaa** gurguruuf?", delay: 1400, typing: 900, showRoles: true },
   ],
   tig: [
-    { text: "ሰላም! 👋 ናብ AgriSpark እንኳን ብደሓን መጻእኩም።", delay: 600, typing: 800 },
+    { text: "ሰላም! 👋 ናብ SmartAgri እንኳን ብደሓን መጻእኩም።", delay: 600, typing: 800 },
     { text: "ኣነ ናይ ዕዳጋ ሕርሻ ኢትዮጵያ AI ሓጋዚ ኢየ — ንገዛእቲ፣ ንሓረስቶት፣ ንኹሉ ሰብ ዝሕግዝ። 🌾", delay: 1200, typing: 1100 },
     { text: "ቅድሚ ምጅማርና — ትዕዛዝ ንምሃብ ዝመጻእኩም **ሸማቒ** ዲኹም ወይ ምሻጥ ዘድልዮ **ሓረስታይ**?", delay: 1400, typing: 900, showRoles: true },
   ],
@@ -75,7 +75,7 @@ export const ROLE_QUICK = {
     both: [
       { label: "What are teff prices today?", icon: "💰" },
       { label: "Show me vegetable prices", icon: "🥦" },
-      { label: "How does AgriSpark work?", icon: "❓" },
+      { label: "How does SmartAgri work?", icon: "❓" },
       { label: "I'm a Buyer — how do I order?", icon: "🛒" },
     ],
   },
@@ -95,7 +95,7 @@ export const ROLE_QUICK = {
     both: [
       { label: "የጤፍ ዋጋ ዛሬ ስንት ነው?", icon: "💰" },
       { label: "የአትክልት ዋጋ አሳይኝ", icon: "🥦" },
-      { label: "AgriSpark እንዴት ይሰራል?", icon: "❓" },
+      { label: "SmartAgri እንዴት ይሰራል?", icon: "❓" },
       { label: "ገዢ ነኝ — እንዴት ትዕዛዝ እሰጣለሁ?", icon: "🛒" },
     ],
   },
@@ -115,7 +115,7 @@ export const ROLE_QUICK = {
     both: [
       { label: "Gatii xaafii har'a meeqa?", icon: "💰" },
       { label: "Gatii kuduraa naa agarsiisi", icon: "🥦" },
-      { label: "AgriSpark akkamitti hojjeta?", icon: "❓" },
+      { label: "SmartAgri akkamitti hojjeta?", icon: "❓" },
       { label: "Bitaa dha — akkamitti ajaja kennaa?", icon: "🛒" },
     ],
   },
@@ -135,7 +135,7 @@ export const ROLE_QUICK = {
     both: [
       { label: "ዋጋ ጣፍ ሎሚ ክንደይ?", icon: "💰" },
       { label: "ዋጋ ኣሕምልቲ ኣርኣዩኒ", icon: "🥦" },
-      { label: "AgriSpark ከምይ ይሰርሕ?", icon: "❓" },
+      { label: "SmartAgri ከምይ ይሰርሕ?", icon: "❓" },
       { label: "ሸማቒ እየ — ከምይ ትእዛዝ ይህብ?", icon: "🛒" },
     ],
   },

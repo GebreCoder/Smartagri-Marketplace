@@ -4,6 +4,7 @@ import Icon from "../../Icon.jsx";
 import { api } from "../../api.js";
 import { useAuth } from "../../auth.jsx";
 import { Spinner, SkeletonCard } from "../../components/Spinner.jsx";
+import CheckoutModal from "../../components/CheckoutModal.jsx";
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1464226184884-fa280b87c399";
 
@@ -16,6 +17,11 @@ export default function ProductDetails() {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
+
+  // Buy-now checkout sheet
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,14 +54,20 @@ export default function ProductDetails() {
   };
 
   const handleBuyNow = async () => {
-    setBusy(true);
+    setCheckoutError("");
+    setCheckoutOpen(true);
+  };
+
+  const submitCheckout = async ({ deliveryMethod, deliveryAddress, deliveryNotes }) => {
+    setCheckoutBusy(true);
+    setCheckoutError("");
     try {
-      await api.post("/api/orders", { productId, quantity });
+      await api.post("/api/orders", { productId, quantity, deliveryMethod, deliveryAddress, deliveryNotes });
+      setCheckoutOpen(false);
       navigate("/buyer/orders");
     } catch (err) {
-      alert(err.message || "Could not place order.");
-    } finally {
-      setBusy(false);
+      setCheckoutError(err.message || "Could not place order.");
+      setCheckoutBusy(false);
     }
   };
 
@@ -189,6 +201,17 @@ export default function ProductDetails() {
           </div>
         </div>
       </div>
+
+      <CheckoutModal
+        open={checkoutOpen}
+        onClose={() => { setCheckoutOpen(false); setCheckoutError(""); }}
+        subtotal={Number(product.price || 0) * quantity}
+        itemCount={1}
+        confirmLabel="Buy now"
+        busy={checkoutBusy}
+        error={checkoutError}
+        onSubmit={submitCheckout}
+      />
     </div>
   );
 }

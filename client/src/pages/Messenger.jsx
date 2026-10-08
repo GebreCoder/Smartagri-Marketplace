@@ -13,7 +13,7 @@ const EMOJI = [
   "🚜", "🐄", "🐔", "🐑", "💰", "📦", "🛒", "❤️", "🎉", "✅",
 ];
 
-const SOUND_KEY = "agrispark_msg_sound";
+const SOUND_KEY = "smartagri_msg_sound";
 
 const getInitials = (name) =>
   String(name || "?")
@@ -224,8 +224,14 @@ export default function Messenger() {
       setThread(null);
       return;
     }
-    loadThread(activeConvId);
-  }, [activeConvId, loadThread]);
+    // Loading the thread marks the incoming messages as read on the server.
+    // Refresh the conversation list so its unread badge clears, and notify the
+    // dashboard shell so the header/sidebar unread counts clear right away.
+    loadThread(activeConvId).then(() => {
+      loadConversations(appliedSearch);
+      window.dispatchEvent(new CustomEvent("smartagri:chat-read"));
+    });
+  }, [activeConvId, appliedSearch, loadThread, loadConversations]);
 
   // Realtime: new direct message refreshes list + open thread + notifies.
   useEffect(() => {
@@ -818,7 +824,7 @@ export default function Messenger() {
             <span className="msg-thread-empty-icon">
               <Icon name="chatbubbles-outline" size={40} color="#16A34A" />
             </span>
-            <div className="msg-thread-empty-title">AgriSpark Messenger</div>
+            <div className="msg-thread-empty-title">SmartAgri Messenger</div>
             <p>
               Select a conversation on the left, or open <strong>Contacts</strong> to chat with any registered
               {myRole === "farmer" ? " buyer" : myRole === "buyer" ? " farmer" : " user"}.

@@ -12,7 +12,10 @@ const LANG_MAP = {
   tig: "Tigrinya (ትግርኛ) using Ethiopic script",
 };
 
-const hasConfiguredApiKey = (value) => typeof value === "string" && value.trim().length > 0 && !value.includes("YOUR_");
+const hasConfiguredApiKey = (value) =>
+  typeof value === "string" &&
+  value.trim().length > 0 &&
+  !/(YOUR_|your_|changeme|change-me|placeholder)/i.test(value);
 
 // ── Groq (primary) ─────────────────────────────────────────────────
 async function callGroq(msgs, lang, role, systemContext) {
@@ -20,7 +23,7 @@ async function callGroq(msgs, lang, role, systemContext) {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.groqApiKey}` },
     body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
+      model: config.groqModel,
       max_tokens: 900,
       messages: [
         { role: "system", content: buildSystemPrompt(`Always respond in ${LANG_MAP[lang] ?? "English"}.`, role) },
@@ -38,7 +41,7 @@ async function callGroq(msgs, lang, role, systemContext) {
 
 // ── Gemini (fallback) ──────────────────────────────────────────────
 async function callGemini(msgs, lang, role, systemContext) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${config.geminiApiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent?key=${config.geminiApiKey}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -86,14 +89,21 @@ router.post(
       });
     }
 
+    // Only one provider configured → call it directly (no pointless fallback).
+    if (groqMissing) {
+      const result = await callGemini(msgs, lang, role, systemContext);
+      return res.json(result);
+    }
+    if (geminiMissing) {
+      const result = await callGroq(msgs, lang, role, systemContext);
+      return res.json(result);
+    }
+
     try {
       const result = await callGroq(msgs, lang, role, systemContext);
       return res.json(result);
     } catch (groqError) {
       console.warn("[ai] Groq failed →", groqError.message);
-      if (geminiMissing) {
-        return res.status(502).json({ message: `Groq failed and Gemini is not configured: ${groqError.message}` });
-      }
       const result = await callGemini(msgs, lang, role, systemContext);
       return res.json(result);
     }

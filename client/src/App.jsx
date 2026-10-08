@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./auth.jsx";
+import { ThemeProvider } from "./theme.jsx";
 
 import Landing from "./pages/Landing.jsx";
 import LoginRegister from "./pages/LoginRegister.jsx";
@@ -30,11 +31,17 @@ import FarmerAnalytics from "./pages/farmer/Analytics.jsx";
 
 import MarketPrices from "./pages/MarketPrices.jsx";
 
+import SettingsLayout from "./pages/settings/SettingsLayout.jsx";
+import ProfileSection from "./pages/settings/ProfileSection.jsx";
+import SecuritySection from "./pages/settings/SecuritySection.jsx";
+import PreferencesSection from "./pages/settings/PreferencesSection.jsx";
+
 import AdminLayout from "./pages/admin/AdminLayout.jsx";
 import AdminDashboard from "./pages/admin/Dashboard.jsx";
 import AdminUsers from "./pages/admin/Users.jsx";
 import AdminProducts from "./pages/admin/Products.jsx";
 import AdminOrders from "./pages/admin/Orders.jsx";
+import AdminSettlements from "./pages/admin/Settlements.jsx";
 import AdminChat from "./pages/admin/Chat.jsx";
 import AdminReports from "./pages/admin/Reports.jsx";
 
@@ -73,8 +80,20 @@ function RequireLogin({ children }) {
   return children;
 }
 
+/**
+ * The legacy /profile route stays functional: admins keep the standalone
+ * profile page, buyers/farmers land on the new Settings → My Profile.
+ */
+function RoleProfile() {
+  const { user } = useAuth();
+  const role = baseRole(user?.role);
+  if (role === "admin") return <Profile />;
+  return <Navigate to={`/${role}/settings/profile`} replace />;
+}
+
 export default function App() {
   return (
+    <ThemeProvider>
     <Routes>
       {/* Public */}
       <Route path="/" element={<Landing />} />
@@ -99,6 +118,12 @@ export default function App() {
         <Route path="cart" element={<BuyerCart />} />
         <Route path="orders" element={<BuyerOrders />} />
         <Route path="chat" element={<Messenger />} />
+        <Route path="settings" element={<SettingsLayout />}>
+          <Route index element={<Navigate to="profile" replace />} />
+          <Route path="profile" element={<ProfileSection />} />
+          <Route path="security" element={<SecuritySection />} />
+          <Route path="preferences" element={<PreferencesSection />} />
+        </Route>
       </Route>
 
       {/* Farmer */}
@@ -119,6 +144,12 @@ export default function App() {
         <Route path="calendar" element={<FarmerCalendar />} />
         <Route path="analytics" element={<FarmerAnalytics />} />
         <Route path="market-prices" element={<MarketPrices />} />
+        <Route path="settings" element={<SettingsLayout />}>
+          <Route index element={<Navigate to="profile" replace />} />
+          <Route path="profile" element={<ProfileSection />} />
+          <Route path="security" element={<SecuritySection />} />
+          <Route path="preferences" element={<PreferencesSection />} />
+        </Route>
       </Route>
 
       {/* Admin */}
@@ -134,6 +165,7 @@ export default function App() {
         <Route path="users" element={<AdminUsers />} />
         <Route path="products" element={<AdminProducts />} />
         <Route path="orders" element={<AdminOrders />} />
+        <Route path="settlements" element={<AdminSettlements />} />
         <Route path="chat" element={<AdminChat />} />
         <Route path="reports" element={<AdminReports />} />
       </Route>
@@ -143,7 +175,7 @@ export default function App() {
         path="/profile"
         element={
           <RequireLogin>
-            <Profile />
+            <RoleProfile />
           </RequireLogin>
         }
       />
@@ -158,5 +190,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </ThemeProvider>
   );
 }

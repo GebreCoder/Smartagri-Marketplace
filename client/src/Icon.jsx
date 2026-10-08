@@ -96,6 +96,7 @@ import {
   IoWalletOutline,
   IoWaterOutline,
 } from "react-icons/io5";
+import { FaWheatAwn } from "react-icons/fa6";
 
 /**
  * Renders Ionicons-style icons (the names used throughout the original
@@ -206,6 +207,7 @@ const ICONS = {
   NavigateOutline: IoNavigateOutline,
   WalletOutline: IoWalletOutline,
   WaterOutline: IoWaterOutline,
+  Wheat: FaWheatAwn,
 };
 
 export default function Icon({ name = "ellipse-outline", size = 20, color = "currentColor", className = "", style }) {

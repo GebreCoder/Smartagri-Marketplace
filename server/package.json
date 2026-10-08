@@ -1,5 +1,5 @@
 {
-  "name": "agrispark-server",
+  "name": "smartagri-server",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "migrate": "node src/migrate.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

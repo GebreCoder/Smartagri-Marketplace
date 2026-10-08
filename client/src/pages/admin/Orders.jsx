@@ -38,8 +38,11 @@ export default function AdminOrders() {
 
   const counts = useMemo(
     () => ({
+      total: orders.length,
       pending: orders.filter((o) => o.status === "pending").length,
       accepted: orders.filter((o) => o.status === "accepted").length,
+      dispatched: orders.filter((o) => o.status === "dispatched").length,
+      paid: orders.filter((o) => o.isPaid).length,
       rejected: orders.filter((o) => o.status === "rejected").length,
       disputes: orders.filter((o) => o.hasDispute).length,
     }),
@@ -52,7 +55,7 @@ export default function AdminOrders() {
 
       <div className="admin-report-grid">
         <div className="admin-report-card">
-          <div className="admin-report-value">{orders.length}</div>
+          <div className="admin-report-value">{counts.total}</div>
           <div className="admin-report-label">Total orders</div>
         </div>
         <div className="admin-report-card">
@@ -62,6 +65,14 @@ export default function AdminOrders() {
         <div className="admin-report-card">
           <div className="admin-report-value" style={{ color: "#1E7A35" }}>{counts.accepted}</div>
           <div className="admin-report-label">Accepted</div>
+        </div>
+        <div className="admin-report-card">
+          <div className="admin-report-value" style={{ color: "#2C5AA0" }}>{counts.dispatched}</div>
+          <div className="admin-report-label">Out for delivery</div>
+        </div>
+        <div className="admin-report-card">
+          <div className="admin-report-value" style={{ color: "#0D9488" }}>{counts.paid}</div>
+          <div className="admin-report-label">Paid</div>
         </div>
         <div className="admin-report-card">
           <div className="admin-report-value" style={{ color: "#E2554A" }}>{counts.disputes}</div>
@@ -81,7 +92,9 @@ export default function AdminOrders() {
                 <th>Farmer</th>
                 <th>Qty</th>
                 <th>Total</th>
+                <th>Payment</th>
                 <th>Status</th>
+                <th>Delivery</th>
                 <th>Date</th>
                 <th>Dispute</th>
               </tr>
@@ -111,7 +124,20 @@ export default function AdminOrders() {
                   <td>{order.quantityLabel}</td>
                   <td className="bold">{order.totalLabel}</td>
                   <td>
+                    {order.isPaid ? (
+                      <span className="admin-chip admin-chip-paid">
+                        <Icon name="checkmark-circle-outline" size={11} /> Paid
+                      </span>
+                    ) : (
+                      <span className="muted small">—</span>
+                    )}
+                  </td>
+                  <td>
                     <span className={`admin-chip admin-chip-${order.status}`}>{order.statusLabel}</span>
+                  </td>
+                  <td>
+                    <div className="admin-cell-name">{order.deliveryMethodLabel}</div>
+                    <div className="admin-cell-sub">{order.deliveryAddress || "—"}</div>
                   </td>
                   <td className="muted">{order.createdLabel}</td>
                   <td>

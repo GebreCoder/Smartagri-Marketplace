@@ -525,7 +525,7 @@ export default function BuyerHome() {
         <div className="d2-card d2-ai-card">
           <div className="d2-card-head">
             <div className="d2-card-title">
-              <Icon name="sparkles" size={15} color="#16A34A" /> AgriSpark AI Assistant
+              <Icon name="sparkles" size={15} color="#16A34A" /> SmartAgri AI Assistant
             </div>
             <span className="d2-new-badge">New</span>
           </div>

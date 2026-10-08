@@ -36,9 +36,9 @@ export async function initializeChapaPayment({
     tx_ref: txRef,
     callback_url: callbackUrl,
     return_url: returnUrl,
-    first_name: firstName || "AgriSpark",
+    first_name: firstName || "SmartAgri",
     last_name: lastName || "Buyer",
-    email: email || "buyer@agrispark.com",
+    email: email || "buyer@smartagri.com",
     phone_number: phoneNumber || "",
   };
 

@@ -11,6 +11,7 @@ const navItems = [
   { to: "/admin/users", label: "Users", icon: "people-outline" },
   { to: "/admin/products", label: "Products", icon: "cube-outline" },
   { to: "/admin/orders", label: "Orders", icon: "receipt-outline" },
+  { to: "/admin/settlements", label: "Settlements", icon: "wallet-outline" },
   { to: "/admin/chat", label: "Chat", icon: "chatbubbles-outline" },
   { to: "/admin/reports", label: "Reports", icon: "flag-outline" },
 ];
@@ -70,9 +71,11 @@ export default function AdminLayout() {
     <div className="admin-shell">
       <aside className="admin-sidebar">
         <div className="admin-brand">
-          <img src="/images/logo-1.png" alt="AgriSpark" />
+          <span className="admin-brand-icon">
+            <Icon name="wheat" size={20} color="#166534" />
+          </span>
           <div>
-            <div className="admin-brand-name">AgriSpark</div>
+            <div className="admin-brand-name">SmartAgri-Marketplace</div>
             <div className="admin-brand-role">Admin Panel</div>
           </div>
         </div>

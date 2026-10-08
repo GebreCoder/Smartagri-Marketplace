@@ -119,3 +119,95 @@ export const ORDER_ACCENT = (category) =>
 
 export const ORDER_ICON = (category) =>
   category === "Grains" ? "layers-outline" : category === "Fruits" ? "nutrition-outline" : "cube-outline";
+
+// ─── Order lifecycle steps (buyer → farmer, shared tracker) ────────
+// Mirrors the production workflow: place → accept → prepare → ready →
+// out for delivery → delivered → completed. Payment is tracked on the
+// order card as a badge rather than a step, because payment and order
+// lifecycles are independent (an order can be paid while preparing).
+export const ORDER_STEPS = [
+  { key: "placed", label: "Placed" },
+  { key: "accepted", label: "Accepted" },
+  { key: "preparing", label: "Preparing" },
+  { key: "ready_for_delivery", label: "Ready" },
+  { key: "dispatched", label: "Out for Delivery" },
+  { key: "delivered", label: "Delivered" },
+  { key: "completed", label: "Completed" },
+];
+
+export const ORDER_STATUS_LABEL = {
+  pending: "Pending",
+  accepted: "Accepted",
+  preparing: "Preparing",
+  ready_for_delivery: "Ready for Delivery",
+  dispatched: "Out for Delivery",
+  delivered: "Delivered",
+  completed: "Completed",
+  rejected: "Declined",
+  cancelled: "Cancelled",
+  refunded: "Refunded",
+};
+
+export const DELIVERY_METHOD_LABEL = {
+  delivery: "Home delivery",
+  pickup: "Farm pickup",
+};
+
+export const TERMINAL_STATUSES = ["rejected", "cancelled", "refunded"];
+
+/**
+ * Build the progress tracker for an order from its raw status + payment flag.
+ * Returns { steps, currentIndex, terminal, terminalLabel }.
+ *   - steps:      [{ label, done, current }] for the visual tracker
+ *   - terminal:   true for rejected / cancelled orders (show a banner)
+ *   - terminalLabel: human text explaining the terminal state
+ */
+export const buildOrderSteps = (rawStatus, isPaid = false) => {
+  const status = normalizeText(rawStatus).toLowerCase() || "pending";
+  const terminal = TERMINAL_STATUSES.includes(status);
+
+  let index;
+  switch (status) {
+    case "accepted":
+      index = 1;
+      break;
+    case "preparing":
+      index = 2;
+      break;
+    case "ready_for_delivery":
+      index = 3;
+      break;
+    case "dispatched":
+      index = 4;
+      break;
+    case "delivered":
+      index = 5;
+      break;
+    case "completed":
+      index = 6;
+      break;
+    case "pending":
+    default:
+      index = 0;
+  }
+
+  const steps = ORDER_STEPS.map((s, i) => ({
+    label: s.label,
+    done: i < index || status === "completed",
+    current: i === index,
+  }));
+
+  return {
+    steps,
+    currentIndex: index,
+    terminal,
+    terminalLabel:
+      status === "rejected"
+        ? "The farmer declined this order."
+        : status === "cancelled"
+          ? "You cancelled this order."
+          : status === "refunded"
+            ? "This order was refunded."
+            : "",
+  };
+};

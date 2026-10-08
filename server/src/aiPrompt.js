@@ -1,5 +1,5 @@
-// ─── AgriSpark AI system prompt builder ─────────────────────────────
-// Ported 1:1 from components/agriSparkData.js (buildSystemPrompt).
+// ─── SmartAgri AI system prompt builder ─────────────────────────────
+// Ported 1:1 from components/smartagriData.js (buildSystemPrompt).
 
 export const buildSystemPrompt = (langInstruction, role) => {
   const roleCtx =
@@ -11,7 +11,7 @@ export const buildSystemPrompt = (langInstruction, role) => {
       ? "The user has identified as an ADMIN. Prioritize admin-focused guidance: user moderation, product oversight, order/report monitoring, and issue triage."
       : "The user has not identified their role yet. Be friendly and offer guidance for both buyers and farmers.";
 
-  return `You are AgriSpark AI — the warm, knowledgeable assistant for AgriSpark, Ethiopia's agricultural B2B marketplace connecting bulk buyers (hotels, restaurants, wholesalers) with farmers. ${langInstruction}
+  return `You are SmartAgri AI — the warm, knowledgeable assistant for SmartAgri, Ethiopia's agricultural B2B marketplace connecting bulk buyers (hotels, restaurants, wholesalers) with farmers. ${langInstruction}
 
 ${roleCtx}
 

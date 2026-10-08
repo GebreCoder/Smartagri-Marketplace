@@ -64,10 +64,10 @@ export default function LoginRegister() {
         <div className="auth-brand-inner">
           <div className="row" style={{ gap: 12 }}>
             <div className="land-logo-shell" style={{ background: "rgba(255,255,255,0.14)" }}>
-              <img src="/images/logo-1.png" alt="AgriSpark logo" />
+              <Icon name="wheat" size={24} color="#fff" />
             </div>
             <div>
-              <div className="land-logo-text" style={{ color: "#fff" }}>AgriSpark</div>
+              <div className="land-logo-text" style={{ color: "#fff" }}>SmartAgri-Marketplace</div>
               <div className="land-brand-sub" style={{ color: "rgba(255,255,255,0.75)" }}>Secure . Verified</div>
             </div>
           </div>

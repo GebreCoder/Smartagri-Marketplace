@@ -20,10 +20,19 @@ export const config = {
     password: read("PG_PASSWORD", "postgres"),
     database: read("PG_DATABASE", "smartagri_db"),
   },
-  jwtSecret: read("JWT_SECRET", "agrispark-dev-secret-change-me"),
+  jwtSecret: read("JWT_SECRET", "smartagri-dev-secret-change-me"),
   jwtExpiresIn: read("JWT_EXPIRES_IN", "7d"),
+  // Platform/service fee — a percentage of the product subtotal retained
+  // by SmartAgri when the buyer pays (the farmer receives the rest).
+  platformFeePercent: Number(read("PLATFORM_FEE_PERCENT", "5")),
+  // How long after an order completes until the farmer's settlement
+  // becomes eligible (days). 0 = eligible immediately on completion.
+  settlementHoldDays: Number(read("SETTLEMENT_HOLD_DAYS", "0")),
   groqApiKey: read("GROQ_API_KEY", ""),
   geminiApiKey: read("GEMINI_API_KEY", ""),
+  // Current provider model ids (override in .env when providers rotate models).
+  groqModel: read("GROQ_MODEL", "groq/compound"),
+  geminiModel: read("GEMINI_MODEL", "gemini-3.6-flash"),
   chapa: {
     secretKey: read("CHAPA_SECRET_KEY", ""),
     webhookHash: read("CHAPA_WEBHOOK_VERIFY_HASH", ""),
@@ -31,8 +40,8 @@ export const config = {
   },
   uploadsDir: path.resolve(__dirname, "../uploads"),
   seed: {
-    adminName: read("SEED_ADMIN_NAME", "Admin AgriSpark"),
-    adminEmail: read("SEED_ADMIN_EMAIL", "admin@agrispark.com"),
+    adminName: read("SEED_ADMIN_NAME", "Admin SmartAgri"),
+    adminEmail: read("SEED_ADMIN_EMAIL", "admin@smartagri.com"),
     adminPassword: read("SEED_ADMIN_PASSWORD", "admin1234"),
   },
 };

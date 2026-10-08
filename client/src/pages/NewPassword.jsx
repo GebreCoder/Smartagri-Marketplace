@@ -50,7 +50,7 @@ export default function NewPassword() {
               <Icon name="arrow-back-outline" size={18} />
             </Link>
             <div>
-              <div className="land-logo-text" style={{ fontSize: 18 }}>AgriSpark</div>
+              <div className="land-logo-text" style={{ fontSize: 18 }}>SmartAgri</div>
               <div className="land-brand-sub">Set a new password</div>
             </div>
           </div>

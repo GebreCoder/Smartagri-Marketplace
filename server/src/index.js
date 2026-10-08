@@ -20,6 +20,8 @@ import uploadRoutes from "./routes/upload.routes.js";
 import paymentRoutes from "./routes/payments.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
+import notificationRoutes from "./routes/notifications.routes.js";
+import settlementRoutes from "./routes/settlements.routes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -45,7 +47,7 @@ app.use(
 app.use("/uploads", express.static(config.uploadsDir));
 
 // ── API routes ─────────────────────────────────────────────────────
-app.get("/api/health", (_req, res) => res.json({ status: "ok", service: "agrispark-api" }));
+app.get("/api/health", (_req, res) => res.json({ status: "ok", service: "smartagri-api" }));
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
@@ -57,6 +59,8 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/settlements", settlementRoutes);
 
 // ── Serve the built React client in production ─────────────────────
 const clientDist = path.resolve(__dirname, "../../client/dist");
@@ -76,6 +80,6 @@ const server = http.createServer(app);
 initSocket(server);
 
 server.listen(config.port, () => {
-  console.log(`🌾 AgriSpark API running at http://localhost:${config.port}`);
+  console.log(`🌾 SmartAgri API running at http://localhost:${config.port}`);
   console.log(`   Socket.IO enabled · uploads dir: ${config.uploadsDir}`);
 });

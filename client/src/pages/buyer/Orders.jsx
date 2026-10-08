@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Icon from "../../Icon.jsx";
 import { api } from "../../api.js";
 import Modal from "../../components/Modal.jsx";
+import OrderTracker from "../../components/OrderTracker.jsx";
 import { Spinner } from "../../components/Spinner.jsx";
 import { getSocket } from "../../socket.js";
 
@@ -11,10 +12,31 @@ const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1464226184884-fa280b87
 const STATUS_PILL = {
   pending: "pill-pending",
   accepted: "pill-accepted",
+  preparing: "pill-preparing",
+  ready_for_delivery: "pill-ready",
+  dispatched: "pill-dispatched",
   rejected: "pill-rejected",
+  cancelled: "pill-cancelled",
+  delivered: "pill-delivered",
+  completed: "pill-completed",
+  refunded: "pill-refunded",
 };
 
-const ORDER_TABS = ["All", "Pending", "Accepted", "Rejected"];
+// Full controlled lifecycle (spec §9) — every stage of the order appears
+// as its own tab so the buyer can follow the flow step by step.
+const ORDER_TABS = [
+  { label: "All", key: "all" },
+  { label: "Pending", key: "pending" },
+  { label: "Accepted", key: "accepted" },
+  { label: "Preparing", key: "preparing" },
+  { label: "Ready", key: "ready_for_delivery" },
+  { label: "Dispatched", key: "dispatched" },
+  { label: "Delivered", key: "delivered" },
+  { label: "Completed", key: "completed" },
+  { label: "Rejected", key: "rejected" },
+  { label: "Cancelled", key: "cancelled" },
+  { label: "Refunded", key: "refunded" },
+];
 
 const PAYMENT_METHODS = [
   { id: "cash", label: "Cash on delivery", hint: "Pay when you receive the product", icon: "cash-outline" },
@@ -41,6 +63,12 @@ export default function BuyerOrders() {
   // Order status tabs
   const [activeTab, setActiveTab] = useState("All");
 
+  // Cancel / complete confirmation modal
+  const [actionOrder, setActionOrder] = useState(null);
+  const [actionKind, setActionKind] = useState(null); // 'cancel' | 'complete'
+  const [actionReason, setActionReason] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
+
   // Simulated batch-payment sheet
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentStage, setPaymentStage] = useState("method");
@@ -48,15 +76,17 @@ export default function BuyerOrders() {
   const [cardNumber, setCardNumber] = useState("");
   const [cardError, setCardError] = useState("");
   const [paying, setPaying] = useState(false);
+  const [quote, setQuote] = useState(null);
 
   // Chapa real-payment flow
   const [chapaTxRef, setChapaTxRef] = useState("");
   const [chapaCheckoutUrl, setChapaCheckoutUrl] = useState("");
 
   const load = useCallback(async () => {
-    const [orderData, paymentData] = await Promise.allSettled([
+    const [orderData, paymentData, quoteData] = await Promise.allSettled([
       api.get("/api/orders/buyer"),
       api.get("/api/payments/status"),
+      api.get("/api/payments/quote"),
     ]);
     if (orderData.status === "fulfilled") {
       setOrders(orderData.value.orders || []);
@@ -66,6 +96,11 @@ export default function BuyerOrders() {
     if (paymentData.status === "fulfilled") {
       setPaidByOrder(paymentData.value.paidByOrder || {});
       setChapaEnabled(Boolean(paymentData.value.chapaEnabled));
+    }
+    if (quoteData.status === "fulfilled") {
+      setQuote(quoteData.value.quote || null);
+    } else {
+      setQuote(null);
     }
     setLoading(false);
   }, []);
@@ -232,21 +267,70 @@ export default function BuyerOrders() {
     }
   };
 
-  const pendingCount = useMemo(() => orders.filter((o) => o.rawStatus === "pending").length, [orders]);
-  const acceptedCount = useMemo(() => orders.filter((o) => o.rawStatus === "accepted").length, [orders]);
-  const rejectedCount = useMemo(() => orders.filter((o) => o.rawStatus === "rejected").length, [orders]);
+  // Cancel a pending order (with an optional reason).
+  const openCancel = (order) => {
+    setActionOrder(order);
+    setActionKind("cancel");
+    setActionReason("");
+  };
+
+  // Complete a delivered order.
+  const openComplete = (order) => {
+    setActionOrder(order);
+    setActionKind("complete");
+    setActionReason("");
+  };
+
+  // Request a refund for a paid order that isn't completed yet.
+  const openRefund = (order) => {
+    setActionOrder(order);
+    setActionKind("refund");
+    setActionReason("");
+  };
+
+  const closeAction = () => {
+    setActionOrder(null);
+    setActionKind(null);
+    setActionReason("");
+    setActionBusy(false);
+  };
+
+  const runAction = async () => {
+    if (!actionOrder) return;
+    setActionBusy(true);
+    try {
+      if (actionKind === "cancel") {
+        await api.post(`/api/orders/${actionOrder.id}/cancel`, { reason: actionReason });
+      } else if (actionKind === "refund") {
+        await api.post(`/api/orders/${actionOrder.id}/refund`, { reason: actionReason });
+      } else {
+        await api.post(`/api/orders/${actionOrder.id}/complete`);
+      }
+      closeAction();
+      await load();
+    } catch (err) {
+      alert(err.message || "Could not update this order.");
+      setActionBusy(false);
+    }
+  };
+
+  const tabCounts = useMemo(() => {
+    const counts = { all: orders.length };
+    ORDER_TABS.forEach((tab) => {
+      if (tab.key !== "all") {
+        counts[tab.key] = orders.filter((o) => o.rawStatus === tab.key).length;
+      }
+    });
+    return counts;
+  }, [orders]);
+
   const paidCount = useMemo(
     () => orders.filter((o) => paidByOrder[String(o.id)]).length,
     [orders, paidByOrder]
   );
 
-  const tabCounts = useMemo(
-    () => ({ All: orders.length, Pending: pendingCount, Accepted: acceptedCount, Rejected: rejectedCount }),
-    [orders.length, pendingCount, acceptedCount, rejectedCount]
-  );
-
   const visibleOrders = useMemo(
-    () => (activeTab === "All" ? orders : orders.filter((o) => o.status === activeTab)),
+    () => (activeTab === "all" ? orders : orders.filter((o) => o.rawStatus === activeTab)),
     [activeTab, orders]
   );
 
@@ -260,13 +344,13 @@ export default function BuyerOrders() {
       <div className="orders-tabs">
         {ORDER_TABS.map((tab) => (
           <button
-            key={tab}
+            key={tab.key}
             type="button"
-            className={`orders-tab${activeTab === tab ? " orders-tab-active" : ""}`}
-            onClick={() => setActiveTab(tab)}
+            className={`orders-tab${activeTab === tab.key ? " orders-tab-active" : ""}`}
+            onClick={() => setActiveTab(tab.key)}
           >
-            {tab}
-            <span className="orders-tab-count">{tabCounts[tab]}</span>
+            {tab.label}
+            <span className="orders-tab-count">{tabCounts[tab.key]}</span>
           </button>
         ))}
       </div>
@@ -274,15 +358,19 @@ export default function BuyerOrders() {
       <div className="stat-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", marginTop: 0 }}>
         <div className="stat-card">
           <div className="stat-label">Pending</div>
-          <div className="stat-value stat-accent">{pendingCount}</div>
+          <div className="stat-value stat-accent">{tabCounts.pending}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Accepted</div>
-          <div className="stat-value">{acceptedCount}</div>
+          <div className="stat-value">{tabCounts.accepted}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Paid</div>
           <div className="stat-value">{paidCount}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Delivered</div>
+          <div className="stat-value">{tabCounts.delivered}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Total spent</div>
@@ -291,7 +379,7 @@ export default function BuyerOrders() {
       </div>
 
       {/* Batch payment summary (only relevant while viewing all or accepted orders) */}
-      {hasAccepted && (activeTab === "All" || activeTab === "Accepted") && (
+      {hasAccepted && (activeTab === "all" || activeTab === "accepted") && (
         <div className="pay-batch-card">
           <div className="pay-batch-copy">
             <div className="pay-batch-title">One payment for all accepted orders</div>
@@ -305,7 +393,8 @@ export default function BuyerOrders() {
           </div>
           <div className="pay-batch-amount">
             <span className="pay-batch-amount-label">Total</span>
-            <span className="pay-batch-amount-value">{formatEtb(batchTotal)}</span>
+            <span className="pay-batch-amount-value">{quote ? quote.totalLabel : formatEtb(batchTotal)}</span>
+            {quote && <span className="pay-amount-hint">incl. {quote.platformFeePercent}% platform fee</span>}
           </div>
           {allPaid ? (
             <button className="pay-batch-done" disabled>
@@ -361,6 +450,21 @@ export default function BuyerOrders() {
                 <div className="order-total">{order.total_label}</div>
               </div>
 
+              <div className="order-delivery">
+                <Icon name={order.delivery_method === "pickup" ? "storefront-outline" : "navigate-outline"} size={14} />
+                <span>{order.delivery_method_label}</span>
+                {order.delivery_address && <span className="muted"> · {order.delivery_address}</span>}
+                {order.delivery_fee > 0 && <span className="muted"> · {order.delivery_fee_label}</span>}
+              </div>
+
+              {/* Lifecycle progress + timeline */}
+              <OrderTracker
+                steps={order.steps}
+                terminal={order.trackerTerminal}
+                terminalLabel={order.trackerTerminalLabel}
+                events={order.events}
+              />
+
               <div className="order-foot">
                 {order.rawStatus === "accepted" && (
                   <>
@@ -368,9 +472,14 @@ export default function BuyerOrders() {
                       <Icon name="chatbubble-ellipses-outline" size={15} /> Chat with farmer
                     </Link>
                     {isPaid ? (
-                      <span className="order-paid-note">
-                        <Icon name="receipt-outline" size={14} /> Paid via {METHOD_LABEL[payment.provider] || payment.provider}
-                      </span>
+                      <>
+                        <span className="order-paid-note">
+                          <Icon name="checkmark-circle-outline" size={14} /> Paid — farmer is preparing
+                        </span>
+                        <button className="btn btn-danger-soft btn-sm" onClick={() => openRefund(order)}>
+                          <Icon name="refresh-outline" size={15} /> Request refund
+                        </button>
+                      </>
                     ) : (
                       <span className="order-unpaid-note">
                         <Icon name="time-outline" size={14} /> In payment batch
@@ -379,13 +488,55 @@ export default function BuyerOrders() {
                   </>
                 )}
 
-                {order.rawStatus === "accepted" && (
-                  <button className="btn btn-primary btn-sm" onClick={() => confirmDelivery(order)} disabled={busyId === order.id}>
-                    {busyId === order.id ? <Spinner light size={15} /> : <><Icon name="checkmark-done-outline" size={15} /> Confirm delivery</>}
+                {(order.rawStatus === "preparing" || order.rawStatus === "ready_for_delivery") && (
+                  <>
+                    <Link to={`/chat/${order.id}?role=buyer`} className="btn btn-soft btn-sm">
+                      <Icon name="chatbubble-ellipses-outline" size={15} /> Chat with farmer
+                    </Link>
+                    {isPaid ? (
+                      <button className="btn btn-danger-soft btn-sm" onClick={() => openRefund(order)}>
+                        <Icon name="refresh-outline" size={15} /> Request refund
+                      </button>
+                    ) : (
+                      <span className="order-unpaid-note">
+                        <Icon name="time-outline" size={14} /> {order.rawStatus === "preparing" ? "Farmer is preparing" : "Ready — waiting for payment"}
+                      </span>
+                    )}
+                  </>
+                )}
+
+                {order.rawStatus === "dispatched" && (
+                  <>
+                    <Link to={`/chat/${order.id}?role=buyer`} className="btn btn-soft btn-sm">
+                      <Icon name="chatbubble-ellipses-outline" size={15} /> Chat with farmer
+                    </Link>
+                    <button className="btn btn-primary btn-sm" onClick={() => confirmDelivery(order)} disabled={busyId === order.id}>
+                      {busyId === order.id ? <Spinner light size={15} /> : <><Icon name="checkmark-done-outline" size={15} /> Confirm delivery</>}
+                    </button>
+                    <button className="btn btn-danger-soft btn-sm" onClick={() => openRefund(order)}>
+                      <Icon name="refresh-outline" size={15} /> Request refund
+                    </button>
+                  </>
+                )}
+
+                {order.rawStatus === "delivered" && (
+                  <>
+                    <button className="btn btn-primary btn-sm" onClick={() => openComplete(order)} disabled={busyId === order.id}>
+                      <Icon name="checkmark-done-circle-outline" size={15} /> Mark as completed
+                    </button>
+                    <button className="btn btn-danger-soft btn-sm" onClick={() => openRefund(order)}>
+                      <Icon name="refresh-outline" size={15} /> Request refund
+                    </button>
+                  </>
+                )}
+
+                {order.rawStatus === "pending" && (
+                  <button className="btn btn-danger-soft btn-sm" onClick={() => openCancel(order)} disabled={busyId === order.id}>
+                    <Icon name="close-outline" size={15} /> Cancel order
                   </button>
                 )}
 
-                {(order.rawStatus === "pending" || order.rawStatus === "accepted") && (
+                {(order.rawStatus === "pending" || order.rawStatus === "accepted" || order.rawStatus === "delivered") && (
                   <button className="btn btn-danger-soft btn-sm" onClick={() => setReportOrder(order)}>
                     <Icon name="flag-outline" size={15} /> Report issue
                   </button>
@@ -394,11 +545,74 @@ export default function BuyerOrders() {
                 {order.rawStatus === "rejected" && (
                   <span className="muted small bold">The farmer declined this order.</span>
                 )}
+
+                {order.rawStatus === "cancelled" && (
+                  <span className="muted small bold">You cancelled this order.</span>
+                )}
+
+                {order.rawStatus === "refunded" && (
+                  <span className="order-unpaid-note">
+                    <Icon name="refresh-outline" size={14} /> This order was refunded
+                  </span>
+                )}
+
+                {order.rawStatus === "completed" && (
+                  <span className="order-paid-note">
+                    <Icon name="checkmark-done-circle-outline" size={14} /> This order is completed
+                  </span>
+                )}
               </div>
             </div>
           );
         })
       )}
+
+      {/* Cancel / refund / complete confirmation */}
+      <Modal open={!!actionOrder} onClose={closeAction} maxWidth={440}>
+        <div className="card-pad" style={{ border: "none", boxShadow: "none" }}>
+          <h3 className="create-title" style={{ fontSize: 18 }}>
+            {actionKind === "cancel" ? "Cancel this order?" : actionKind === "refund" ? "Refund this order?" : "Mark order as completed?"}
+          </h3>
+          {actionKind === "cancel" ? (
+            <>
+              <p className="create-sub">
+                Cancelling removes this order. The farmer will be notified and the pending request will be closed.
+              </p>
+              <textarea
+                className="textarea"
+                rows={3}
+                value={actionReason}
+                onChange={(e) => setActionReason(e.target.value)}
+                placeholder="Optional reason for cancelling…"
+              />
+            </>
+          ) : actionKind === "refund" ? (
+            <>
+              <p className="create-sub">
+                Your payment for this order will be returned, the farmer's stock restored, and the order closed. The full
+                transaction history is kept for audit.
+              </p>
+              <textarea
+                className="textarea"
+                rows={3}
+                value={actionReason}
+                onChange={(e) => setActionReason(e.target.value)}
+                placeholder="Optional reason for the refund…"
+              />
+            </>
+          ) : (
+            <p className="create-sub">
+              Confirm you received everything from this order. Once completed it will be marked as finished for both you and the farmer.
+            </p>
+          )}
+          <div className="row mt-2" style={{ justifyContent: "flex-end" }}>
+            <button className="btn btn-ghost" onClick={closeAction} disabled={actionBusy}>Keep order</button>
+            <button className={`btn ${actionKind === "cancel" || actionKind === "refund" ? "btn-danger-soft" : "btn-primary"}`} onClick={runAction} disabled={actionBusy}>
+              {actionBusy ? <Spinner light size={15} /> : actionKind === "cancel" ? "Yes, cancel order" : actionKind === "refund" ? "Yes, refund order" : "Yes, complete order"}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Payment sheet */}
       <Modal open={paymentOpen} onClose={closePayment} maxWidth={440}>
@@ -410,8 +624,25 @@ export default function BuyerOrders() {
 
           <div className="pay-amount-box">
             <span className="pay-amount-label">Amount to pay</span>
-            <span className="pay-amount-value">{formatEtb(batchTotal)}</span>
-            <span className="pay-amount-hint">This single payment covers the whole accepted batch.</span>
+            <span className="pay-amount-value">{quote ? quote.totalLabel : formatEtb(batchTotal)}</span>
+            {quote ? (
+              <div className="pay-breakdown">
+                <div className="pay-breakdown-row">
+                  <span>Products ({quote.orderCount} order{quote.orderCount === 1 ? "" : "s"})</span>
+                  <span>{quote.subtotalLabel}</span>
+                </div>
+                <div className="pay-breakdown-row">
+                  <span>Delivery fee</span>
+                  <span>{quote.deliveryFeeLabel}</span>
+                </div>
+                <div className="pay-breakdown-row">
+                  <span>Platform fee ({quote.platformFeePercent}%)</span>
+                  <span>{quote.platformFeeLabel}</span>
+                </div>
+              </div>
+            ) : (
+              <span className="pay-amount-hint">This single payment covers the whole accepted batch.</span>
+            )}
           </div>
 
           {paymentStage === "chapa-pending" ? (

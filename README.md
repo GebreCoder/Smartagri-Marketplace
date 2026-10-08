@@ -1,260 +1,397 @@
-# 🌾 AgriSpark — PERN Stack
+﻿# SmartAgri Marketplace
 
-AgriSpark connects **farmers** and **buyers** directly — no middlemen. This repository is the
-full web re-implementation of the original React Native app, rebuilt as a modern
-**P**ostgreSQL · **E**xpress · **R**eact · **N**ode.js application. All business logic from the
-original app was preserved and ported 1:1.
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15%2B-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Express](https://img.shields.io/badge/Express-4.x-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-4.x-010101?logo=socket.io&logoColor=white)](https://socket.io/)
 
-> Database name: **`smartagri_db`**
+A modern agri-commerce platform built to connect farmers and buyers directly, improve price transparency, and streamline operations across discovery, order fulfillment, payments, and settlements.
 
----
+SmartAgri is designed for agricultural ecosystems where trust, speed, and visibility matter most. It brings together marketplace commerce, real-time communication, AI assistance, and role-based dashboards in one production-ready application.
 
-## ✨ Features
+## Overview
 
-| Area | Details |
-| --- | --- |
-| **Landing** | Hero carousel, categories, top products, features, how-it-works, testimonials, AI chatbot FAB |
-| **Auth** | Register / login with roles (farmer, buyer), JWT in `localStorage`, forgot + reset password (token flow) |
-| **Buyer** | Marketplace with search, category filters & pagination · product details · cart · batch orders · order status tracking · delivery confirmation · issue reporting · chat with farmers |
-| **Farmer** | Dashboard with live stats · product CRUD with image upload · accept / reject orders · chat with buyers |
-| **Admin** | Dashboard stats · user management (activate / deactivate / delete with related-data preview) · product moderation · order & dispute overview · chat monitoring · system reports |
-| **AI Chatbot** | 4 languages (EN / Amharic / Afaan Oromo / Tigrinya), market prices tab, Groq primary + Gemini fallback — routed **through the Express server** |
-| **Realtime** | Socket.IO — order updates, new messages, marketplace changes delivered live to connected users |
+SmartAgri is a full-stack marketplace for agricultural products and trade workflows. It enables:
 
----
+- farmers to list crops and manage inventory
+- buyers to discover products and complete purchases
+- admins to oversee platform activity and financial flows
+- stakeholders to track orders, settlements, and communication in real time
 
-## 🧱 Tech Stack
+The platform is built as a monorepo with a dedicated React frontend and Express backend, backed by PostgreSQL for reliable transactional data management.
 
-- **Backend** — Node.js + Express, `pg` (PostgreSQL), `bcryptjs`, `jsonwebtoken`, `multer`, `socket.io`
-- **Frontend** — React 19 + Vite, `react-router-dom`, `socket.io-client`, `react-icons`
-- **Database** — PostgreSQL (`smartagri_db`), schema in [`database/schema.sql`](database/schema.sql)
+## Why This Project Exists
 
+Agriculture remains one of the most important economic sectors in many economies, yet a large part of the market still depends on fragmented communication and inefficient trade processes. SmartAgri addresses this by creating a digital marketplace that reduces friction, increases transparency, and improves trust between producers and buyers.
+
+### Problems it solves
+
+- fragmented farmer-to-buyer discovery
+- unclear order status and fulfillment visibility
+- delayed or inconsistent payment processes
+- weak settlement tracking and financial auditability
+- limited communication between parties during trade
+- lack of operational insights for growers and platform managers
+
+## Product Highlights
+
+### For Buyers
+
+- browse and search agricultural products
+- discover products from multiple sellers
+- compare offerings and purchase directly
+- manage cart and multi-seller checkout workflows
+- monitor order progress and delivery status
+- receive notifications and messaging updates
+- complete payments through simulated or Chapa-based flows
+
+### For Farmers
+
+- create and update product listings with image uploads
+- handle incoming orders and fulfill them from a dashboard
+- manage inventory and operational workflows
+- track settlements and payout eligibility
+- communicate directly with buyers
+- monitor sales and order performance
+
+### For Admins
+
+- manage user accounts and marketplace activity
+- review products, orders, and disputes
+- process settlement requests
+- monitor financial transactions and platform activity
+- view operational and reporting data across the platform
+
+### Platform Capabilities
+
+- JWT-based authentication and role-aware access control
+- real-time updates using Socket.IO
+- AI-powered buyer/farmer assistance using Groq and Gemini
+- Chapa payment integration support for Ethiopian financial flows
+- settlement and ledger tracking for auditability
+- modern responsive frontend experience with React and Vite
+
+## Tech Stack
+
+### Frontend
+
+- React 19
+- Vite
+- React Router
+- Socket.IO Client
+- Responsive UI architecture
+
+### Backend
+
+- Node.js
+- Express.js
+- PostgreSQL via `pg`
+- JWT authentication
+- bcrypt password hashing
+- Multer for upload handling
+- Socket.IO for real-time events
+
+### AI and Payments
+
+- Groq AI
+- Gemini AI
+- Chapa integration
+
+## Architecture
+
+```text
+┌──────────────────────┐         REST / WebSocket        ┌──────────────────────┐
+│                      │  ─────────────────────────────▶ │                      │
+│ React Frontend       │                                │ Express API Server   │
+│ (Vite + React)       │  ◀─────────────────────────────  │ + Socket.IO          │
+│                      │                                │                      │
+└──────────────────────┘                                └──────────┬───────────┘
+                                                                   │
+                                                                   │ SQL
+                                                                   ▼
+                                                         ┌──────────────────────┐
+                                                         │ PostgreSQL           │
+                                                         │ smartagri_db         │
+                                                         └──────────────────────┘
 ```
-┌────────────┐   REST /api  ┌──────────────┐   SQL    ┌───────────────┐
-│ React SPA  │ ───────────▶ │  Express     │ ───────▶ │ PostgreSQL    │
-│ (Vite)     │              │  API server  │          │ smartagri_db  │
-│            │ ◀─────────── │  + Socket.IO │ ◀─────── │               │
-└────────────┘   WebSocket  └──────────────┘          └───────────────┘
+
+## Project Structure
+
+```text
+smartagri-marketplace/
+├── client/                         # Frontend application
+│   ├── src/
+│   ├── index.html
+│   ├── vite.config.js
+│   └── .env.example
+├── server/                         # Backend and business logic
+│   ├── src/
+│   ├── .env.example
+│   └── uploads/
+├── database/
+│   ├── schema.sql
+│   ├── migrations/
+│   └── check-schema-parity.mjs
+├── design-images/
+├── images/
+├── nginx.conf
+├── package.json
+├── package-lock.json
+├── verify.mjs
+├── README.md
+├── .gitignore
+└── .vscode/
 ```
 
----
+## Getting Started
 
-## 🚀 Getting Started
+### Prerequisites
 
-### 1. Prerequisites
+Before running the project locally, make sure you have:
 
-- **Node.js 18+** (npm included)
-- **PostgreSQL** running locally (or a remote database URL)
+- Node.js 18 or newer
+- npm
+- PostgreSQL installed and running
+- a browser for local testing
 
-### 2. Create the database
+### 1. Clone the Repository
 
 ```bash
-psql -U postgres -c "CREATE DATABASE smartagri_db;"
+git clone https://github.com/your-username/smartagri-marketplace.git
+cd smartagri-marketplace
 ```
 
-Apply the schema:
-
-```bash
-psql -U postgres -d smartagri_db -f database/schema.sql
-```
-
-### 3. Configure the server
-
-```bash
-cp server/.env.example server/.env
-```
-
-Edit `server/.env` — at minimum set:
-
-```env
-DATABASE_URL=postgres://postgres:yourpassword@localhost:5432/smartagri_db
-JWT_SECRET=<a-long-random-string>
-```
-
-> If you don't use `DATABASE_URL`, set `PG_HOST / PG_PORT / PG_USER / PG_PASSWORD / PG_DATABASE` instead.
-
-### 4. Install dependencies
+### 2. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 5. Seed the database (optional)
+This project uses a workspace setup with separate frontend and backend packages.
 
-Creates the admin account and, with `SEED_DEMO=true`, demo users + products:
+### 3. Create the Database
+
+Create PostgreSQL database:
 
 ```bash
-cd server
-npm run seed            # admin only
-SEED_DEMO=true npm run seed   # admin + demo farmers/buyers/products
+psql -U postgres -c "CREATE DATABASE smartagri_db;"
 ```
 
-Default seeded accounts:
+Load the schema:
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Admin | `admin@agrispark.com` | `admin1234` |
-| Farmer (demo) | `farmer@agrispark.com` | `farmer123` |
-| Buyer (demo) | `buyer@agrispark.com` | `buyer123` |
+```bash
+psql -U postgres -d smartagri_db -f database/schema.sql
+```
 
-### 6. Run the app (development)
+### 4. Configure Environment Variables
+
+#### Server
+
+```bash
+cp server/.env.example server/.env
+```
+
+Windows PowerShell:
+
+```powershell
+Copy-Item server/.env.example server/.env
+```
+
+#### Client
+
+```bash
+cp client/.env.example client/.env
+```
+
+Windows PowerShell:
+
+```powershell
+Copy-Item client/.env.example client/.env
+```
+
+Update the required values in `server/.env`:
+
+```env
+PORT=5000
+PUBLIC_URL=http://localhost:5000
+DATABASE_URL=postgresql://localhost:5432/smartagri_db
+JWT_SECRET=your_super_secure_secret_key
+JWT_EXPIRES_IN=7d
+```
+
+Optional configuration for AI and payments:
+
+```env
+GROQ_API_KEY=your_groq_api_key
+GEMINI_API_KEY=your_gemini_api_key
+CHAPA_SECRET_KEY=your_chapa_secret_key
+CHAPA_WEBHOOK_VERIFY_HASH=your_webhook_secret
+```
+
+### 5. Start the Application
 
 ```bash
 npm run dev
 ```
 
-- 🖥️ Frontend: http://localhost:5173
-- 🔌 API + Socket.IO: http://localhost:5000
-- 💡 Health check: http://localhost:5000/api/health
+The app will run with:
 
-### 7. Production build
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:5000
+- Health endpoint: http://localhost:5000/api/health
+
+### 6. Production Build
 
 ```bash
-npm run build          # builds client → client/dist
-npm start              # Express serves the built client + API on :5000
+npm run build
+npm start
 ```
 
----
+The Express server serves the built frontend and exposes the API on the configured port.
 
-## 🔑 Authentication Flow
+### 7. Run Verification
 
-1. Client sends credentials to `POST /api/auth/login` (or `/register`).
-2. Server validates the password with `bcrypt` and returns a **JWT** + user object.
-3. The client stores the token in **`localStorage`** and sends it as `Authorization: Bearer <token>`.
-4. Every request is verified by the `requireAuth` middleware; role checks (`requireFarmer`, `requireAdmin`) gate dashboard routes.
-5. Deactivated accounts (`farmer_inactive`, `buyer_inactive`) are blocked at login and by the token middleware.
-
----
-
-## 🔌 API Overview
-
-| Method | Endpoint | Access | Purpose |
-| --- | --- | --- | --- |
-| POST | `/api/auth/register` | public | Create account |
-| POST | `/api/auth/login` | public | Log in (JWT) |
-| GET | `/api/auth/me` | user | Current profile |
-| POST | `/api/auth/forgot-password` | public | Request reset token |
-| POST | `/api/auth/reset-password` | public | Set new password |
-| GET | `/api/products` | public | Marketplace (search/category/paging) |
-| GET | `/api/products/featured` | public | Featured picks |
-| GET/POST/PUT/DELETE | `/api/products` | farmer | Manage own products |
-| GET/POST/PATCH/DELETE | `/api/cart` | buyer | Cart management |
-| GET | `/api/orders/buyer` | buyer | My orders |
-| GET | `/api/orders/farmer` | farmer | Incoming orders |
-| POST | `/api/orders/from-cart` | buyer | Place batch order |
-| POST | `/api/orders` | buyer | Buy now |
-| PATCH | `/api/orders/:id/status` | farmer | Accept / reject |
-| POST | `/api/orders/:id/confirm-delivery` | buyer | Confirm delivery |
-| POST | `/api/orders/:id/report-issue` | buyer | Report an issue |
-| GET | `/api/payments/status` | buyer | Paid orders, payment history & whether Chapa is enabled |
-| POST | `/api/payments/from-orders` | buyer | Simulated batch payment for accepted orders |
-| POST | `/api/payments/chapa/initialize` | buyer | Start a real Chapa hosted checkout (returns `checkout_url`) |
-| POST | `/api/payments/chapa/verify` | buyer | Confirm a Chapa payment server-side |
-| POST | `/api/payments/chapa/webhook` | public | Chapa webhook (HMAC-verified, flips payment to paid) |
-| GET/POST | `/api/chat/...` | user | Conversations & messages |
-| GET/PATCH/DELETE | `/api/admin/...` | admin | Users, products, orders, chat, reports |
-| POST/DELETE | `/api/upload` | user | Image upload |
-| POST | `/api/ai/chat` | public | AI chatbot proxy (Groq → Gemini) |
-| GET | `/api/health` | public | Health check |
-
----
-
-## 💳 Chapa Payments (Ethiopia)
-
-Buyers can pay their accepted orders in one batch. With **no configuration** the app
-uses the built-in simulation; add a Chapa secret key and the buyer's “Pay in batch”
-button opens a **real hosted checkout** (Telebirr · CBE Birr · bank cards):
-
-```env
-# server/.env
-CHAPA_SECRET_KEY=SECK_TEST_xxxxxxxx        # test keys start with SECK_TEST-
-CHAPA_WEBHOOK_VERIFY_HASH=your_webhook_secret  # optional, from Chapa dashboard
-# CHAPA_API_BASE=https://api.chapa.co/v1     # override only if needed
+```bash
+npm run verify
 ```
 
-- Sign up at **https://dashboard.chapa.co** → grab **test keys** (free, instant).
-- Sandbox mode is automatic: keys starting with `SECK_TEST-` / `PUBK_TEST-`.
-- **2.5%** commission per successful domestic transaction.
-- Flow: `POST /api/payments/chapa/initialize` creates a `pending` payment row and
-  returns a hosted `checkout_url` → buyer pays at Chapa → the client polls
-  `POST /api/payments/chapa/verify` (server re-confirms with Chapa) and/or Chapa
-  fires the signed webhook at `/api/payments/chapa/webhook`. Only a `success`
-  verification flips the row to `succeeded`; the buyer's Orders page then shows the
-  green **Paid** badge.
-- **Webhooks** need `CHAPA_WEBHOOK_VERIFY_HASH` set (same value as the Chapa
-  dashboard **Settings → Webhooks → Secret Hash**); without it webhooks return 401.
-- In production, set `PUBLIC_URL` to your real public origin — it becomes Chapa's
-  `callback_url` / `return_url`.
+The project includes verification scripts to validate:
 
----
+- schema consistency
+- seed data integrity
+- marketplace workflow behavior
+- notification and settlement contracts
+- AI route behavior
+- browser smoke checks for core flows
 
-## 🌐 Realtime Events (Socket.IO)
+To skip browser-based smoke checks:
 
-Clients authenticate sockets with the JWT via handshake auth. Events:
-
-- `order:changed` — emitted to the buyer & farmer of an order on status changes
-- `message:new` — emitted to an order room and both participants
-- `message:cleared` — emitted when an admin clears a thread
-- `product:changed` — broadcast when an admin removes a product
-
----
-
-## 🤖 AI Chatbot
-
-The chatbot lives at `client/src/components/AiChatbot.jsx` and talks to
-`POST /api/ai/chat`. Add your keys to `server/.env`:
-
-```env
-GROQ_API_KEY=your_key        # primary (llama-3.3-70b-versatile)
-GEMINI_API_KEY=your_key      # fallback (gemini-1.5-flash)
+```bash
+VERIFY_BROWSER=0 npm run verify
 ```
 
-If neither key is set, the chatbot shows a friendly “AI is not configured” message.
-Market prices are bundled in `client/src/data/agriSparkData.js` and always work offline.
+## Demo Accounts
+
+The application includes seed data for quick testing.
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@smartagri.com` | `admin1234` |
+| Farmer | `farmer@smartagri.com` | `farmer123` |
+| Buyer | `buyer@smartagri.com` | `buyer123` |
+
+To seed the accounts:
+
+```bash
+npm run seed
+```
+
+To include demo marketplace data:
+
+```bash
+SEED_DEMO=true npm run seed
+```
+
+## Core User Journeys
+
+### Buyer Journey
+
+1. sign up or log in
+2. browse agricultural products
+3. add products to cart
+4. check out and complete the payment step
+5. track order updates from confirmation to delivery
+6. confirm delivery and complete the purchase lifecycle
+
+### Farmer Journey
+
+1. log in to the farmer dashboard
+2. list products and manage inventory
+3. receive incoming orders
+4. accept, prepare, and dispatch orders
+5. monitor settlements and payout status
+
+### Admin Journey
+
+1. manage users and platform content
+2. review orders, disputes, and reports
+3. process settlements and financial records
+4. monitor marketplace operations and communication flows
+
+## API Overview
+
+The backend includes a broad set of API routes covering authentication, products, cart, orders, notifications, settlements, AI, and administration.
+
+### Authentication
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+
+### Marketplace and Orders
+
+- `GET /api/products`
+- `GET /api/products/featured`
+- `POST /api/orders/from-cart`
+- `POST /api/orders`
+- `GET /api/orders/buyer`
+- `GET /api/orders/farmer`
+- `PATCH /api/orders/:id/status`
+
+### Payments and Settlements
+
+- `GET /api/payments/status`
+- `GET /api/payments/quote`
+- `POST /api/payments/chapa/initialize`
+- `POST /api/payments/chapa/verify`
+- `GET /api/settlements`
+- `GET /api/settlements/admin`
+
+### AI and Realtime
+
+- `POST /api/ai/chat`
+- `GET /api/notifications`
+- Socket.IO events for order, notification, and messaging updates
+
+## Security and Production Readiness
+
+The project includes several important production-oriented safeguards:
+
+- password hashing with bcrypt
+- JWT validation for protected routes
+- role-based authorization for buyers, farmers, and admins
+- server-side payment verification patterns
+- secure handling of environment configuration and uploaded assets
+
+Before production deployment, ensure:
+
+- `JWT_SECRET` is strong and unique
+- PostgreSQL credentials are secured
+- payment secrets are stored in a protected environment
+- HTTPS is enabled in production
+- admin credentials are rotated before public access
+
+## Roadmap
+
+The platform already includes a solid core marketplace foundation. Future enhancements may include:
+
+- advanced analytics and reporting
+- improved recommendation and product discovery
+- deeper AI support for pricing and sales insights
+- mobile-first optimizations and offline support
+- CI/CD automation and production deployment workflows
+
+## License
+
+This project does not currently include a license file. If you plan to publish it publicly on GitHub, it is recommended to add an open-source license such as MIT or Apache 2.0 before release.
+
+## Acknowledgments
+
+SmartAgri was built to improve trust, efficiency, and transparency in agricultural commerce by combining modern web engineering with practical workflows for real-world farm-to-market activity.
 
 ---
 
-## 📁 Project Structure
-
-```
-├── database/
-│   └── schema.sql            # PostgreSQL schema for smartagri_db
-├── server/
-│   ├── .env.example
-│   └── src/
-│       ├── index.js          # Express + Socket.IO bootstrap
-│       ├── config.js         # Env-driven config
-│       ├── db.js             # pg pool + transactions
-│       ├── utils.js          # Shared helpers (prices, roles, shaping)
-│       ├── aiPrompt.js       # Chatbot system prompt
-│       ├── seed.js           # Seed script
-│       ├── middleware/       # auth (JWT), upload (multer), error handler
-│       ├── routes/           # auth, users, products, cart, orders, chat, admin, upload, ai
-│       └── socket.js         # Realtime layer
-└── client/
-    ├── .env.example
-    ├── index.html
-    ├── vite.config.js        # Dev proxy → :5000
-    └── src/
-        ├── main.jsx / App.jsx  # Router + guards
-        ├── auth.jsx            # Auth context (JWT in localStorage)
-        ├── api.js              # Fetch wrapper + upload helper
-        ├── socket.js           # Socket.IO helper
-        ├── Icon.jsx            # Ionicons icon mapping
-        ├── data/agriSparkData.js
-        ├── components/         # Shared UI (cards, chatbot, modals…)
-        ├── pages/              # Landing, auth, buyer, farmer, admin, chat, profile
-        └── styles/             # Design system CSS
-```
-
----
-
-## 🔐 Notes
-
-- **Passwords** are hashed with `bcrypt` (cost 10).
-- **Uploads** are stored on disk in `server/uploads/` and served at `/uploads`.
-- **Password reset** currently returns the token in the API response (no email provider
-  configured) so the flow can be completed end-to-end — wire up an email/SMS provider in
-  `server/src/routes/auth.routes.js` when ready.
-- **Payments** default to the simulated batch flow; adding a Chapa secret key upgrades
-  the buyer checkout to a real payment (see [Chapa Payments](#-chapa-payments-ethiopia)).
+Built to make agricultural trade more transparent, efficient, and connected.

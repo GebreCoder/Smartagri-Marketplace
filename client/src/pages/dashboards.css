@@ -511,6 +511,30 @@
   color: var(--green-600);
 }
 
+/* ── Checkout sheet (shared by Buy now + cart) ─────────────────── */
+.checkout-methods {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.checkout-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--green-950);
+  margin: 14px 0 6px;
+}
+
+.checkout-summary {
+  margin-top: 16px;
+  background: var(--surface-2, #f6faf7);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+}
+
 /* ── Orders ────────────────────────────────────────────────────── */
 .order-card {
   background: var(--white);
@@ -584,6 +608,204 @@
   font-weight: 900;
   color: var(--green-600);
   font-size: 15px;
+}
+
+.order-delivery {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--green-800);
+  font-weight: 700;
+  padding: 0 16px 10px;
+  margin-top: -4px;
+}
+
+.order-delivery .muted {
+  font-weight: 500;
+}
+
+/* ── Order lifecycle tracker ────────────────────────────────────── */
+.order-tracker-wrap {
+  padding: 0 16px 4px;
+}
+
+.order-tracker {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 12px 0;
+  overflow-x: auto;
+}
+
+.order-tracker-step {
+  flex: 1;
+  min-width: 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.order-tracker-step::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: -50%;
+  right: 50%;
+  height: 2px;
+  background: var(--border-2);
+}
+
+.order-tracker-step:first-child::before {
+  display: none;
+}
+
+.order-tracker-step.done::before {
+  background: var(--green-500);
+}
+
+.order-tracker-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+  background: var(--surface-2);
+  border: 2px solid var(--border-2);
+  color: var(--muted);
+  z-index: 1;
+}
+
+.order-tracker-step.done .order-tracker-dot {
+  background: var(--green-500);
+  border-color: var(--green-500);
+  color: #fff;
+}
+
+.order-tracker-step.current .order-tracker-dot {
+  border-color: var(--green-500);
+  color: var(--green-700);
+  background: var(--white);
+  box-shadow: 0 0 0 3px var(--green-100);
+}
+
+.order-tracker-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.order-tracker-step.done .order-tracker-label {
+  color: var(--green-700);
+}
+
+.order-tracker-step.current .order-tracker-label {
+  color: var(--green-800);
+}
+
+.order-terminal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f7f0e8;
+  color: #8a5a1e;
+  border: 1px solid #efdfc6;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ── Order timeline ─────────────────────────────────────────────── */
+.order-timeline {
+  padding: 4px 0 10px;
+}
+
+.order-timeline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--green-700);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 0;
+}
+
+.order-timeline-toggle:hover {
+  text-decoration: underline;
+}
+
+.order-timeline-list {
+  margin-top: 10px;
+  padding-left: 4px;
+}
+
+.order-timeline-item {
+  display: flex;
+  gap: 10px;
+  position: relative;
+  padding-bottom: 14px;
+}
+
+.order-timeline-item::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border-2);
+}
+
+.order-timeline-item:last-child::before {
+  display: none;
+}
+
+.order-timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green-500);
+  border: 2px solid var(--white);
+  box-shadow: 0 0 0 1px var(--green-500);
+  flex-shrink: 0;
+  margin-top: 3px;
+  z-index: 1;
+}
+
+.order-timeline-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.order-timeline-label {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.order-timeline-note {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.order-timeline-date {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
 }
 
 .order-foot {
@@ -770,6 +992,27 @@
   font-size: 11px;
   color: var(--muted);
   margin-top: 4px;
+}
+
+.pay-breakdown {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.pay-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.pay-breakdown-row span:last-child {
+  color: var(--green-800);
 }
 
 .pay-method-list {
@@ -1371,4 +1614,99 @@
   .pd-actions {
     flex-direction: column;
   }
+}
+
+/* ── Farmer settlements ───────────────────────────────────────── */
+.stl-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.stl-card {
+  background: var(--white);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.stl-card-acc {
+  background: linear-gradient(135deg, #f6fbf4, #eaf6ee);
+  border-color: var(--green-100);
+}
+
+.stl-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+}
+
+.stl-value {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--green-950);
+  margin-top: 6px;
+}
+
+.stl-value-acc {
+  color: var(--green-600);
+}
+
+.stl-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--white);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+.stl-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.stl-item-title {
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.stl-item-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.stl-item-amount {
+  font-weight: 900;
+  font-size: 15px;
+  color: var(--green-600);
+  text-align: right;
+}
+
+.pill-eligible {
+  background: #fff3d6;
+  color: #92590a;
+}
+
+.pill-processing {
+  background: #e2edff;
+  color: #2c5aa0;
+}
+
+.pill-settled {
+  background: var(--green-100);
+  color: var(--green-700);
+}
+
+.pill-failed {
+  background: #f5ddda;
+  color: #b25546;
 }

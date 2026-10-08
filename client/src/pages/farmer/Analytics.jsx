@@ -34,7 +34,7 @@ const exportCsv = (data) => {
   const rows = [];
   const push = (cells) => rows.push(cells.map(csvCell).join(","));
 
-  push(["AgriSpark Farm Analytics Report"]);
+  push(["SmartAgri Farm Analytics Report"]);
   push([`Generated ${new Date().toLocaleString()}`]);
   push([]);
   push(["Metric", "Value"]);
@@ -75,7 +75,7 @@ const exportCsv = (data) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `agrispark-analytics-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `smartagri-analytics-${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

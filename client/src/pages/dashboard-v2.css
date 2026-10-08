@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════════════════════════════
-   AgriSpark Dashboard v2 — Premium SaaS design system
+   SmartAgri Dashboard v2 — Premium SaaS design system
    Deep forest green sidebar · white header · light gray canvas
    ════════════════════════════════════════════════════════════════ */
 :root {
@@ -83,10 +83,13 @@
 }
 
 .d2-brand-name {
-  font-size: 17px;
+  font-size: 13px;
   font-weight: 800;
   color: #FFFFFF;
   letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .d2-nav {
@@ -3832,4 +3835,512 @@ mark.msg-match {
   background: #1E2925;
   border-color: var(--d2-line, #26302B);
   color: #CBD5E1;
+}
+
+
+/* ═══════════ SETTINGS (sidebar submenu + sections) ═══════════ */
+
+/* ── Sidebar: expandable Settings submenu ── */
+.d2-nav-settings {
+  margin-bottom: 2px;
+}
+
+.d2-nav-toggle {
+  width: 100%;
+  border: none;
+  background: none;
+  color: #CBE5D8;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.d2-nav-toggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+}
+
+.d2-nav-chevron {
+  display: inline-flex;
+  color: rgba(203, 229, 216, 0.6);
+  transition: transform 0.2s ease;
+}
+
+.d2-nav-chevron.open {
+  transform: rotate(180deg);
+}
+
+.d2-nav-sub {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+}
+
+.d2-nav-sub.open {
+  grid-template-rows: 1fr;
+}
+
+.d2-nav-sub-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.d2-nav-sub-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 6px 34px;
+  margin-bottom: 1px;
+  border-radius: 8px;
+  color: rgba(203, 229, 216, 0.75);
+  text-decoration: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.d2-nav-sub-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+}
+
+.d2-nav-sub-item.active {
+  background: rgba(22, 163, 74, 0.28);
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+/* ── Settings page layout ── */
+.d2-settings {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.d2-settings-head {
+  margin-bottom: 22px;
+}
+
+.d2-settings-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--d2-ink);
+  margin: 0 0 4px;
+  letter-spacing: -0.3px;
+}
+
+.d2-settings-sub {
+  font-size: 13.5px;
+  color: var(--d2-slate);
+  margin: 0;
+}
+
+.d2-settings-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 22px;
+  align-items: start;
+}
+
+.d2-settings-nav {
+  position: sticky;
+  top: 86px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--d2-white);
+  border: 1px solid var(--d2-line);
+  border-radius: var(--d2-radius);
+  padding: 10px;
+}
+
+.d2-settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--d2-slate);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.d2-settings-nav-item:hover {
+  background: var(--d2-green-mist);
+  color: var(--d2-green);
+}
+
+.d2-settings-nav-item.active {
+  background: var(--d2-green);
+  color: #FFFFFF;
+}
+
+.d2-settings-nav-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.d2-settings-nav-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.d2-settings-nav-label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.d2-settings-nav-hint {
+  font-size: 11px;
+  opacity: 0.75;
+  line-height: 1.35;
+}
+
+.d2-settings-nav-item.active .d2-settings-nav-hint {
+  opacity: 0.9;
+}
+
+.d2-settings-content {
+  min-width: 0;
+}
+
+.d2-settings-section {
+  display: grid;
+  gap: 18px;
+}
+
+.d2-settings-card {
+  background: var(--d2-white);
+  border: 1px solid var(--d2-line);
+  border-radius: var(--d2-radius);
+  padding: 22px;
+  box-shadow: var(--d2-shadow);
+}
+
+.d2-settings-card-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--d2-ink);
+  margin: 0 0 3px;
+}
+
+.d2-settings-card-sub {
+  font-size: 12.5px;
+  color: var(--d2-slate);
+  margin: 0 0 18px;
+  line-height: 1.55;
+}
+
+.d2-settings-center {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--d2-slate);
+  font-size: 13px;
+}
+
+.d2-settings-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.d2-settings-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+
+.d2-settings-banner.error {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #B91C1C;
+}
+
+.d2-settings-banner.success {
+  background: var(--d2-green-mist);
+  border: 1px solid #BBF7D0;
+  color: var(--d2-green);
+}
+
+.d2-settings-form .d2-field {
+  margin-bottom: 14px;
+}
+
+.d2-settings-form .d2-field textarea {
+  border: 1px solid var(--d2-line);
+  border-radius: 9px;
+  padding: 9px 11px;
+  font-size: 13px;
+  color: var(--d2-ink);
+  font-family: inherit;
+  outline: none;
+  background: #fff;
+  min-height: 92px;
+  resize: vertical;
+  transition: border 0.15s, box-shadow 0.15s;
+}
+
+.d2-settings-form .d2-field textarea:focus {
+  border-color: var(--d2-green);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+.d2-settings-account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.d2-settings-account-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--d2-green-mist);
+  color: var(--d2-green);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.d2-settings-account-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--d2-slate-light);
+}
+
+.d2-settings-account-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--d2-ink);
+  margin-top: 2px;
+}
+
+/* ── My Profile identity card ── */
+.d2-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.d2-profile-avatar-btn {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  background: linear-gradient(135deg, var(--d2-green), var(--d2-emerald));
+  color: #fff;
+  font-size: 22px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.d2-profile-avatar-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.d2-profile-avatar-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 20, 12, 0.45);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.d2-profile-avatar-btn:hover .d2-profile-avatar-hint {
+  opacity: 1;
+}
+
+.d2-profile-identity-copy {
+  min-width: 0;
+}
+
+.d2-profile-identity-name {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--d2-ink);
+}
+
+.d2-profile-identity-meta {
+  font-size: 13px;
+  color: var(--d2-slate);
+  margin-top: 2px;
+}
+
+.d2-profile-identity-hint {
+  font-size: 11.5px;
+  color: var(--d2-slate-light);
+  margin-top: 5px;
+}
+
+.d2-hidden-input {
+  display: none;
+}
+
+/* ── Danger zone / sign out ── */
+.d2-settings-danger-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.d2-settings-danger-zone .d2-settings-card-title {
+  color: var(--d2-red);
+}
+
+.d2-settings-danger-copy .d2-settings-card-sub {
+  margin-bottom: 0;
+}
+
+/* ── Preferences: theme options ── */
+.d2-theme-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  max-width: 460px;
+}
+
+.d2-theme-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  border: 1.5px solid var(--d2-line);
+  border-radius: 12px;
+  background: var(--d2-white);
+  padding: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.d2-theme-option:hover {
+  border-color: #A7D8B8;
+}
+
+.d2-theme-option.active {
+  border-color: var(--d2-green);
+  background: var(--d2-green-mist);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+.d2-theme-option-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #F1F5F3;
+  color: var(--d2-slate);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.d2-theme-option.active .d2-theme-option-icon {
+  background: var(--d2-green);
+  color: #fff;
+}
+
+.d2-theme-option-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.d2-theme-option-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--d2-ink);
+}
+
+.d2-theme-option-desc {
+  font-size: 11.5px;
+  color: var(--d2-slate);
+}
+
+.d2-theme-option-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: var(--d2-green);
+}
+
+/* ── Settings responsive ── */
+@media (max-width: 900px) {
+  .d2-settings-layout {
+    grid-template-columns: 1fr;
+  }
+  .d2-settings-nav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .d2-settings-nav-item {
+    flex: 0 0 auto;
+  }
+  .d2-settings-nav-hint {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .d2-theme-options {
+    grid-template-columns: 1fr;
+  }
+  .d2-settings-card {
+    padding: 18px;
+  }
+  .d2-settings-danger-zone {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ── Settings dark mode ── */
+[data-theme="dark"] .d2-settings-form .d2-field textarea {
+  background: var(--d2-canvas);
+  color: var(--d2-ink);
+  border-color: var(--d2-line);
+}
+
+[data-theme="dark"] .d2-theme-option-icon {
+  background: var(--d2-canvas);
+}
+
+[data-theme="dark"] .d2-settings-banner.error {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.35);
+  color: #FCA5A5;
+}
+
+[data-theme="dark"] .d2-settings-banner.success {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: rgba(22, 163, 74, 0.35);
 }

@@ -50,7 +50,7 @@ const pins = [
 ];
 
 const reviews = [
-  { type: "Farmer Testimonial", quote: "AgriSpark helped me sell directly and improve my income.", author: "Abebe T.", place: "Gondar" },
+  { type: "Farmer Testimonial", quote: "SmartAgri helped me sell directly and improve my income.", author: "Abebe T.", place: "Gondar" },
   { type: "Buyer Testimonial", quote: "We consistently get fresh produce in bulk with lower cost.", author: "Nana L.", place: "Addis Ababa" },
 ];
 
@@ -142,10 +142,10 @@ export default function Landing() {
         <div className="land-header-inner">
           <div className="land-brand" onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
             <div className="land-logo-shell">
-              <img src="/images/logo-1.png" alt="AgriSpark logo" />
+              <Icon name="wheat" size={24} color="#166534" />
             </div>
             <div>
-              <div className="land-logo-text">AgriSpark</div>
+              <div className="land-logo-text">SmartAgri-Marketplace</div>
               <div className="land-brand-sub">Secure . Verified</div>
             </div>
           </div>
@@ -297,12 +297,12 @@ export default function Landing() {
       {/* Footer */}
       <footer className="land-footer">
         <div className="land-footer-card">
-          <div className="land-footer-title">Grow with AgriSpark</div>
+          <div className="land-footer-title">Grow with SmartAgri</div>
           <div className="land-footer-sub">Helping buyers and farmers connect directly with trusted profiles.</div>
           <div className="land-footer-chips">
             <span className="land-footer-chip">
               <Icon name="mail-outline" size={14} color="#1E7A35" />
-              info@agrispark.com
+              info@smartagri.com
             </span>
             <span className="land-footer-chip">
               <Icon name="help-circle-outline" size={14} color="#1E7A35" />

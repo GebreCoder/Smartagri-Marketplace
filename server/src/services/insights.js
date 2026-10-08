@@ -5,7 +5,10 @@
 
 import { config } from "../config.js";
 
-const hasApiKey = (value) => typeof value === "string" && value.trim().length > 0 && !value.includes("YOUR_");
+const hasApiKey = (value) =>
+  typeof value === "string" &&
+  value.trim().length > 0 &&
+  !/(YOUR_|your_|changeme|change-me|placeholder)/i.test(value);
 
 export const aiConfigured = () => hasApiKey(config.groqApiKey) || hasApiKey(config.geminiApiKey);
 
@@ -67,7 +70,7 @@ export const buyerInsights = ({ prices = [], favorites = [] }) => {
 export const generateAiParagraph = async ({ role, context, fallback }) => {
   if (!aiConfigured()) return { text: fallback, source: "rules" };
   const prompt =
-    `You are AgriSpark AI for a ${role} on an Ethiopian agricultural marketplace. ` +
+    `You are SmartAgri AI for a ${role} on an Ethiopian agricultural marketplace. ` +
     `Using ONLY this data, write ONE concise, encouraging insight (max 2 sentences, no markdown):\n${context}`;
 
   const tryProvider = async (fn) => {
@@ -87,7 +90,7 @@ export const generateAiParagraph = async ({ role, context, fallback }) => {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.groqApiKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: config.groqModel,
           max_tokens: 200,
           messages: [{ role: "user", content: prompt }],
         }),
@@ -99,7 +102,7 @@ export const generateAiParagraph = async ({ role, context, fallback }) => {
 
   if (!text && hasApiKey(config.geminiApiKey)) {
     text = await tryProvider(async () => {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${config.geminiApiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent?key=${config.geminiApiKey}`;
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

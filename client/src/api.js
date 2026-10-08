@@ -3,7 +3,7 @@
 // chosen auth strategy). All requests go through the Vite dev proxy,
 // so /api always points at the Express server.
 
-const TOKEN_KEY = "agrispark_token";
+const TOKEN_KEY = "smartagri_token";
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (token) => {

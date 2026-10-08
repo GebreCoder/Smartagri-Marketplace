@@ -1,4 +1,5 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import { query } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/error.js";
@@ -60,6 +61,38 @@ router.patch(
     );
 
     return res.json({ user: rows[0] });
+  })
+);
+
+// ── Change password ────────────────────────────────────────────────
+// POST /api/users/me/password  body: { currentPassword, newPassword }
+router.post(
+  "/me/password",
+  asyncHandler(async (req, res) => {
+    const currentPassword = String(req.body.currentPassword || "");
+    const newPassword = String(req.body.newPassword || "");
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters." });
+    }
+
+    const { rows } = await query("SELECT * FROM users WHERE id = $1", [req.user.id]);
+    const user = rows[0];
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const matches = await bcrypt.compare(currentPassword, user.password);
+    if (!matches) {
+      return res.status(400).json({ message: "Current password is incorrect." });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await query("UPDATE users SET password = $1 WHERE id = $2", [passwordHash, req.user.id]);
+    // Invalidate any outstanding reset tokens for the account.
+    await query("DELETE FROM password_resets WHERE user_id = $1", [req.user.id]);
+
+    return res.json({ message: "Password updated." });
   })
 );
 

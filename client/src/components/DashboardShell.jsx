@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import Icon from "../Icon.jsx";
 import { api, setToken } from "../api.js";
 import { useAuth } from "../auth.jsx";
 import { disconnectSocket, getSocket } from "../socket.js";
+import Modal from "./Modal.jsx";
+import ChatFab from "./ChatFab.jsx";
+import AiChatbot from "./AiChatbot.jsx";
+import { useTheme } from "../theme.jsx";
 
 const getInitials = (name) => {
   const value = String(name || "").trim();
@@ -32,7 +36,7 @@ const FARMER_NAV = [
     { to: "/farmer/chat", end: true, label: "Messages", icon: "chatbubbles-outline", badgeKey: "messages" },
   ]},
   { section: "ACCOUNT", items: [
-    { to: "/profile", end: true, label: "Settings", icon: "settings-outline" },
+    { type: "settings", label: "Settings", icon: "settings-outline" },
   ]},
 ];
 
@@ -53,12 +57,19 @@ const BUYER_NAV = [
     { to: "/buyer/chat", end: true, label: "Messages", icon: "chatbubbles-outline", badgeKey: "messages" },
   ]},
   { section: "ACCOUNT", items: [
-    { to: "/profile", end: true, label: "Settings", icon: "settings-outline" },
+    { type: "settings", label: "Settings", icon: "settings-outline" },
   ]},
+];
+
+const SETTINGS_SUBNAV = [
+  { to: "profile", label: "My Profile", icon: "person-outline" },
+  { to: "security", label: "Security", icon: "shield-checkmark-outline" },
+  { to: "preferences", label: "Preferences", icon: "options-outline" },
 ];
 
 export default function DashboardShell({ role = "farmer" }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const isBuyer = role === "buyer";
   const nav = isBuyer ? BUYER_NAV : FARMER_NAV;
@@ -68,31 +79,15 @@ export default function DashboardShell({ role = "farmer" }) {
   const [cartCount, setCartCount] = useState(0);
   const [messagesCount, setMessagesCount] = useState(0);
   const [notificationsCount, setNotificationsCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
   const [priceAlerts, setPriceAlerts] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const notifRef = useRef(null);
-  const [dark, setDark] = useState(() => {
-    // Apply synchronously before first paint to avoid a flash of light theme.
-    try {
-      const stored = localStorage.getItem("agrispark_theme");
-      const isDark = stored === "dark";
-      document.documentElement.setAttribute("data-theme", stored || "light");
-      return isDark;
-    } catch {
-      return false;
-    }
-  });
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-    try {
-      localStorage.setItem("agrispark_theme", dark ? "dark" : "light");
-    } catch {
-      /* ignore */
-    }
-  }, [dark]);
+  // Theme is managed centrally (Settings → Preferences) via ThemeProvider.
+  useTheme();
 
   // Close the notification panel on outside click or Escape.
   useEffect(() => {
@@ -115,28 +110,31 @@ export default function DashboardShell({ role = "farmer" }) {
 
   const loadBadges = useCallback(async () => {
     try {
+      let alertCount = 0;
       if (isBuyer) {
         const { items } = await api.get("/api/cart");
         setCartCount(items.reduce((s, i) => s + Number(i.quantity || 0), 0));
-        const { orders } = await api.get("/api/orders/buyer");
-        const pendingOrders = orders.filter((o) => String(o.rawStatus).toLowerCase() === "pending").length;
         // Price-drop alerts on favorited products feed the same bell.
-        let alertCount = 0;
         try {
           const { priceAlerts: alerts } = await api.get("/api/dashboard/buyer/insights");
           setPriceAlerts(alerts || []);
           alertCount = (alerts || []).length;
         } catch {
-          /* bell still shows order notifications */
+          /* bell still shows other notifications */
         }
-        setNotificationsCount(pendingOrders + alertCount);
-      } else {
-        const { orders } = await api.get("/api/orders/farmer");
-        setNotificationsCount(orders.filter((o) => String(o.rawStatus).toLowerCase() === "pending").length);
+      }
+      // Persistent in-app notifications (order / payment / system events).
+      try {
+        const { notifications: notifs, unread } = await api.get("/api/notifications");
+        setNotifications(notifs || []);
+        setNotificationsCount((notifs || []).length ? unread : alertCount);
+      } catch {
+        setNotifications([]);
+        setNotificationsCount(alertCount);
       }
       const { conversations } = await api.get("/api/chat/direct");
       const unreadCount = conversations.filter((c) => Number(c.unread || 0) > 0).length;
-      setMessagesCount(unreadCount || Math.min(conversations.length, 5));
+      setMessagesCount(unreadCount);
     } catch {
       // badges stay at zero when endpoints fail
     }
@@ -159,15 +157,88 @@ export default function DashboardShell({ role = "farmer" }) {
   useEffect(() => {
     const socket = getSocket();
     const onChange = () => loadBadges();
+    const onNotification = () => {
+      setNotificationsCount((count) => count + 1);
+      loadBadges();
+    };
     socket.on("order:changed", onChange);
     socket.on("message:new", onChange);
     socket.on("product:changed", onChange);
+    socket.on("notification:new", onNotification);
     return () => {
       socket.off("order:changed", onChange);
       socket.off("message:new", onChange);
       socket.off("product:changed", onChange);
+      socket.off("notification:new", onNotification);
     };
   }, [loadBadges]);
+
+  // Clear the unread badge as soon as the Messenger marks messages as read,
+  // so the count reflects what the user has actually seen.
+  useEffect(() => {
+    const onChatRead = () => loadBadges();
+    window.addEventListener("smartagri:chat-read", onChatRead);
+    return () => window.removeEventListener("smartagri:chat-read", onChatRead);
+  }, [loadBadges]);
+
+  // Keep the sidebar/header name in sync after profile edits in Settings.
+  useEffect(() => {
+    const onProfileUpdated = () => loadProfile();
+    window.addEventListener("smartagri:profile-updated", onProfileUpdated);
+    return () => window.removeEventListener("smartagri:profile-updated", onProfileUpdated);
+  }, [loadProfile]);
+
+  const settingsBase = `/${isBuyer ? "buyer" : "farmer"}/settings`;
+  const inSettings = location.pathname.startsWith(settingsBase);
+  const [settingsOpen, setSettingsOpen] = useState(inSettings);
+  useEffect(() => {
+    // Keep the submenu expanded while the user navigates between sections.
+    if (inSettings) setSettingsOpen(true);
+  }, [inSettings]);
+
+  // Human label for the current dashboard page (feeds the AI assistant context).
+  const dashboardPage = (() => {
+    const path = location.pathname.replace(/^\/[^/]+/, "");
+    const labels = {
+      "/": isBuyer ? "Buyer Dashboard" : "Farmer Dashboard",
+      "/marketplace": "Marketplace",
+      "/favorites": "Favorites",
+      "/cart": "Cart",
+      "/orders": "Orders",
+      "/products": "My Products",
+      "/create": "Add Product",
+      "/analytics": "Analytics",
+      "/crops": "Crops",
+      "/calendar": "Farm Calendar",
+      "/market-prices": "Market Prices",
+      "/chat": "Messages",
+    };
+    return labels[path] || (isBuyer ? "Buyer Dashboard" : "Farmer Dashboard");
+  })();
+
+  const openNotification = async (notification) => {
+    setNotifOpen(false);
+    if (!notification.isRead) {
+      try {
+        await api.patch(`/api/notifications/${notification.id}/read`);
+        setNotifications((list) => list.map((n) => (n.id === notification.id ? { ...n, isRead: true } : n)));
+        setNotificationsCount((count) => Math.max(0, count - 1));
+      } catch {
+        /* ignore */
+      }
+    }
+    if (notification.link) navigate(notification.link);
+  };
+
+  const markAllNotificationsRead = async () => {
+    try {
+      await api.post("/api/notifications/read-all");
+      setNotifications((list) => list.map((n) => ({ ...n, isRead: true })));
+      setNotificationsCount(0);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const displayName = profile?.full_name || user?.full_name || (isBuyer ? "Buyer" : "Farmer");
   const roleLabel = isBuyer ? "Premium Buyer" : "Premium Farmer";
@@ -193,9 +264,9 @@ export default function DashboardShell({ role = "farmer" }) {
       <aside className="d2-sidebar">
         <Link to={isBuyer ? "/buyer" : "/farmer"} className="d2-brand">
           <span className="d2-brand-logo">
-            <Icon name="leaf" size={18} color="#fff" />
+            <Icon name="wheat" size={18} color="#fff" />
           </span>
-          <span className="d2-brand-name">AgriSpark</span>
+          <span className="d2-brand-name">SmartAgri-Marketplace</span>
         </Link>
 
         <nav className="d2-nav">
@@ -203,6 +274,39 @@ export default function DashboardShell({ role = "farmer" }) {
             <div className="d2-nav-group" key={group.section}>
               <div className="d2-nav-label">{group.section}</div>
               {group.items.map((item) => {
+                if (item.type === "settings") {
+                  return (
+                    <div className="d2-nav-settings" key={item.label}>
+                      <button
+                        type="button"
+                        className={`d2-nav-item d2-nav-toggle${inSettings ? " d2-nav-active" : ""}`}
+                        onClick={() => setSettingsOpen((v) => !v)}
+                        aria-expanded={settingsOpen}
+                        aria-controls="d2-settings-submenu"
+                      >
+                        <Icon name={item.icon} size={16} />
+                        <span className="d2-nav-text">{item.label}</span>
+                        <span className={`d2-nav-chevron${settingsOpen ? " open" : ""}`}>
+                          <Icon name="chevron-down" size={14} />
+                        </span>
+                      </button>
+                      <div id="d2-settings-submenu" className={`d2-nav-sub${settingsOpen ? " open" : ""}`}>
+                        <div className="d2-nav-sub-inner">
+                          {SETTINGS_SUBNAV.map((sub) => (
+                            <NavLink
+                              key={sub.to}
+                              to={`${settingsBase}/${sub.to}`}
+                              className={({ isActive }) => `d2-nav-sub-item${isActive ? " active" : ""}`}
+                            >
+                              <Icon name={sub.icon} size={14} />
+                              <span className="d2-nav-text">{sub.label}</span>
+                            </NavLink>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
                 const badge = item.badgeKey ? badges[item.badgeKey] : 0;
                 return (
                   <NavLink
@@ -257,14 +361,6 @@ export default function DashboardShell({ role = "farmer" }) {
           </form>
 
           <div className="d2-header-actions">
-            <button
-              className="d2-hicon d2-theme-toggle"
-              onClick={() => setDark((v) => !v)}
-              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-              title={dark ? "Light mode" : "Dark mode"}
-            >
-              <Icon name={dark ? "sunny-outline" : "moon-outline"} size={18} />
-            </button>
             {isBuyer && (
               <Link to="/buyer/cart" className="d2-hicon">
                 <Icon name="cart-outline" size={19} />
@@ -287,7 +383,40 @@ export default function DashboardShell({ role = "farmer" }) {
               </button>
               {notifOpen && (
                 <div className="d2-dropdown d2-notif-panel" role="menu">
-                  <div className="d2-notif-title">Notifications</div>
+                  <div className="d2-notif-head">
+                    <div className="d2-notif-title">Notifications</div>
+                    {notifications.some((n) => !n.isRead) && (
+                      <button className="d2-notif-markall" onClick={markAllNotificationsRead}>
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  {notifications.length > 0 && (
+                    <>
+                      <div className="d2-notif-group">Updates</div>
+                      {notifications.slice(0, 8).map((notification) => (
+                        <button
+                          className={`d2-notif-item${notification.isRead ? " d2-notif-read" : ""}`}
+                          key={notification.id}
+                          onClick={() => openNotification(notification)}
+                        >
+                          <span className="d2-notif-icon">
+                            <Icon
+                              name={notification.type === "payment" ? "card-outline" : notification.type === "message" ? "chatbubbles-outline" : "notifications-outline"}
+                              size={16}
+                            />
+                          </span>
+                          <div className="d2-notif-body">
+                            <div className="d2-notif-text">{notification.title}</div>
+                            <div className="d2-notif-sub">{notification.body}</div>
+                          </div>
+                          {!notification.isRead && <span className="d2-notif-dot" />}
+                        </button>
+                      ))}
+                    </>
+                  )}
+
                   {isBuyer && priceAlerts.length > 0 && (
                     <>
                       <div className="d2-notif-group">Price drop alerts</div>
@@ -309,7 +438,7 @@ export default function DashboardShell({ role = "farmer" }) {
                       ))}
                     </>
                   )}
-                  <div className="d2-notif-group">{isBuyer ? "Order updates" : "Order updates"}</div>
+
                   <button className="d2-notif-item d2-notif-link" onClick={() => { setNotifOpen(false); navigate(isBuyer ? "/buyer/orders" : "/farmer/orders"); }}>
                     <Icon name="receipt-outline" size={16} />
                     <div className="d2-notif-body">
@@ -317,7 +446,8 @@ export default function DashboardShell({ role = "farmer" }) {
                       <div className="d2-notif-sub">Track status, confirm delivery, report issues</div>
                     </div>
                   </button>
-                  {notificationsCount === 0 && (
+
+                  {notifications.length === 0 && priceAlerts.length === 0 && (
                     <div className="d2-notif-empty">You&apos;re all caught up ✨</div>
                   )}
                 </div>
@@ -343,7 +473,7 @@ export default function DashboardShell({ role = "farmer" }) {
               </button>
               {menuOpen && (
                 <div className="d2-dropdown">
-                  <button onClick={() => { setMenuOpen(false); navigate("/profile"); }}>
+                  <button onClick={() => { setMenuOpen(false); navigate(`${settingsBase}/profile`); }}>
                     <Icon name="person-outline" size={15} /> My Profile
                   </button>
                   <button onClick={() => { setMenuOpen(false); navigate(isBuyer ? "/buyer/orders" : "/farmer/orders"); }}>
@@ -362,6 +492,18 @@ export default function DashboardShell({ role = "farmer" }) {
           <Outlet />
         </main>
       </div>
+
+      <ChatFab onClick={() => setChatOpen(true)} label={isBuyer ? "Ask AI" : "Ask AI"} />
+
+      <Modal open={chatOpen} onClose={() => setChatOpen(false)} maxWidth={460}>
+        <div style={{ height: "80vh", minHeight: 520 }}>
+          <AiChatbot
+            onClose={() => setChatOpen(false)}
+            dashboardRole={isBuyer ? "buyer" : "farmer"}
+            dashboardPage={dashboardPage}
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

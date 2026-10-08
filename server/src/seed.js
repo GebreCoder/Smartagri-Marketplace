@@ -26,8 +26,8 @@ const run = async () => {
     console.log("   · Adding demo farmers, buyers and products ...");
 
     const demo = [
-      { full_name: "Abebe Tesfaye", email: "farmer@agrispark.com", phone: "+251-911-111-111", role: "farmer", business_name: "Green Valley Farms", location: "Addis Ababa", password: "farmer123" },
-      { full_name: "Nana Lemma", email: "buyer@agrispark.com", phone: "+251-922-222-222", role: "buyer", business_name: "Nana Restaurants", location: "Addis Ababa", password: "buyer123" },
+      { full_name: "Abebe Tesfaye", email: "farmer@smartagri.com", phone: "+251-911-111-111", role: "farmer", business_name: "Green Valley Farms", location: "Addis Ababa", password: "farmer123" },
+      { full_name: "Nana Lemma", email: "buyer@smartagri.com", phone: "+251-922-222-222", role: "buyer", business_name: "Nana Restaurants", location: "Addis Ababa", password: "buyer123" },
     ];
 
     const userIds = {};

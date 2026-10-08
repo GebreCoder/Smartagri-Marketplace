@@ -36,7 +36,7 @@ export default function Create() {
     setLoading(true);
     try {
       const { product } = await api.get(`/api/products/${editId}`);
-      if (product && String(product.farmer_id) === String(localStorage.getItem("agrispark_user_id") || "")) {
+      if (product && String(product.farmer_id) === String(localStorage.getItem("smartagri_user_id") || "")) {
         // ownership is enforced server-side too; prefill regardless of local id
       }
       setForm({

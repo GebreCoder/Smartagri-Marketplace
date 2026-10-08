@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   AgriSpark — Design System
+   SmartAgri — Design System
    Palette ported from the original app (greens, warm neutrals).
    ═══════════════════════════════════════════════════════════════ */
 
@@ -276,9 +276,45 @@ img {
   color: var(--green-700);
 }
 
+.pill-dispatched {
+  background: #e2edff;
+  color: #2c5aa0;
+}
+
 .pill-rejected {
   background: #f5ddda;
   color: #b25546;
+}
+
+.pill-cancelled {
+  background: #ececf0;
+  color: #6b6b76;
+}
+
+.pill-delivered {
+  background: #e3ecf9;
+  color: #2c5aa0;
+}
+
+.pill-completed {
+  background: var(--green-100);
+  color: var(--green-700);
+}
+
+.pill-preparing {
+  background: #e8f0ff;
+  color: #2c5aa0;
+}
+
+.pill-ready {
+  background: #e6f8ed;
+  color: var(--green-700);
+  border: 1px solid #cdedd9;
+}
+
+.pill-refunded {
+  background: #f1e7fa;
+  color: #6b2fa0;
 }
 
 .pill-flag {

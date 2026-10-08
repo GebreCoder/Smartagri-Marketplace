@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Icon from "../../Icon.jsx";
 import { api } from "../../api.js";
 import { Spinner } from "../../components/Spinner.jsx";
+import CheckoutModal from "../../components/CheckoutModal.jsx";
 
 // Flat delivery fee charged when the cart has items (matches the original app).
 const DELIVERY_FEE = 180;
@@ -13,6 +14,10 @@ export default function Cart() {
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
+
+  // Checkout sheet state
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -58,16 +63,23 @@ export default function Cart() {
     }
   };
 
-  const placeOrder = async () => {
+  const placeOrder = () => {
     setError("");
+    setCheckoutError("");
+    setCheckoutOpen(true);
+  };
+
+  const submitCheckout = async ({ deliveryMethod, deliveryAddress, deliveryNotes }) => {
     setPlacing(true);
+    setCheckoutError("");
     try {
-      const { orders } = await api.post("/api/orders/from-cart", {});
+      const { orders } = await api.post("/api/orders/from-cart", { deliveryMethod, deliveryAddress, deliveryNotes });
+      setCheckoutOpen(false);
       if (orders?.length) {
         navigate("/buyer/orders", { replace: true });
       }
     } catch (err) {
-      setError(err.message || "Could not place the order.");
+      setCheckoutError(err.message || "Could not place the order.");
     } finally {
       setPlacing(false);
     }
@@ -139,7 +151,7 @@ export default function Cart() {
               <span>{`ETB ${delivery.toLocaleString("en-US", { maximumFractionDigits: 0 })}`}</span>
             </div>
             <div className="cart-summary-row" style={{ fontSize: 11, color: "var(--muted-2)" }}>
-              <span>Flat fee charged on delivery</span>
+              <span>Flat fee for home delivery — farm pickup is free (choose at checkout)</span>
               <span />
             </div>
             <div className="cart-summary-total">
@@ -154,6 +166,17 @@ export default function Cart() {
               <button className="btn btn-ghost" onClick={clearCart}>Clear</button>
             </div>
           </div>
+
+          <CheckoutModal
+            open={checkoutOpen}
+            onClose={() => { setCheckoutOpen(false); setCheckoutError(""); }}
+            subtotal={subtotal}
+            itemCount={items.length}
+            confirmLabel="Place order"
+            busy={placing}
+            error={checkoutError}
+            onSubmit={submitCheckout}
+          />
         </>
       )}
     </div>

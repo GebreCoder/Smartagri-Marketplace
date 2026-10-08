@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Icon from "../Icon.jsx";
 import { api } from "../api.js";
 import { useAuth } from "../auth.jsx";
@@ -86,10 +86,10 @@ export default function PublicProducts() {
         <div className="land-header-inner">
           <div className="land-brand" onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
             <div className="land-logo-shell">
-              <img src="/images/logo-1.png" alt="AgriSpark logo" />
+              <Icon name="wheat" size={24} color="#166534" />
             </div>
             <div>
-              <div className="land-logo-text">AgriSpark</div>
+              <div className="land-logo-text">SmartAgri-Marketplace</div>
               <div className="land-brand-sub">Secure . Verified</div>
             </div>
           </div>
@@ -154,7 +154,7 @@ export default function PublicProducts() {
       </main>
 
       <footer className="pub-footer">
-        <span>© 2026 AgriSpark — Ethiopia's Agricultural Marketplace</span>
+        <span>© 2026 SmartAgri — Ethiopia's Agricultural Marketplace</span>
       </footer>
     </div>
   );

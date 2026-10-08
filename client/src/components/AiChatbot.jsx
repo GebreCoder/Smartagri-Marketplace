@@ -15,7 +15,7 @@ import {
   LANGS,
   UI,
   QUICK_LABEL,
-} from "../data/agriSparkData.js";
+} from "../data/smartagriData.js";
 import "../styles/chatbot.css";
 
 const nowTime = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -47,7 +47,7 @@ function MessageBubble({ role, content, timestamp }) {
         {!isUser && (
           <div className="chatb-ai-tag">
             <Icon name="sparkles" size={11} color="#175E31" />
-            <span>AgriSpark AI</span>
+            <span>SmartAgri AI</span>
           </div>
         )}
         <BoldText text={content} />
@@ -253,7 +253,7 @@ export default function AiChatbot({ autoGreeting = true, dashboardRole = null, d
             <Icon name="leaf" size={16} color="#fff" />
           </div>
           <div className="grow">
-            <div className="chatb-title">AgriSpark AI</div>
+            <div className="chatb-title">SmartAgri AI</div>
             <div className="chatb-tagline-row">
               <span className="chatb-dot" />
               <span className="chatb-tagline">{t.tagline}</span>

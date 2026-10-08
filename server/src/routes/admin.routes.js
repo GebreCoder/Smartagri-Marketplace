@@ -257,7 +257,7 @@ router.get(
     const productIds = [...new Set(orderRows.map((row) => row.product_id).filter(Boolean))];
     const buyerIds = [...new Set(orderRows.map((row) => row.buyer_id).filter(Boolean))];
 
-    const [productResult, buyerResult, issueResult] = await Promise.all([
+    const [productResult, buyerResult, issueResult, paymentResult] = await Promise.all([
       productIds.length
         ? query(
             `SELECT p.id, p.farmer_id, p.name, p.category, p.price, p.quantity, p.location, p.image_url, p.created_at,
@@ -280,7 +280,18 @@ router.get(
             "SELECT id, order_id, message, created_at, sender_id, receiver_id FROM messages WHERE message ILIKE 'Issue reported:%' ORDER BY created_at DESC"
           )
         : Promise.resolve({ rows: [] }),
+      orderRows.length
+        ? query(
+            "SELECT order_ids FROM payments WHERE status IN ('succeeded', 'awaiting_settlement', 'settled', 'partially_refunded') AND order_ids ?| $1::text[]",
+            [orderRows.map((row) => row.id)]
+          )
+        : Promise.resolve({ rows: [] }),
     ]);
+
+    const paidOrderSet = new Set();
+    paymentResult.rows.forEach((row) => {
+      (Array.isArray(row.order_ids) ? row.order_ids : []).forEach((id) => paidOrderSet.add(String(id)));
+    });
 
     const productsMap = new Map(productResult.rows.map((row) => [String(row.id), row]));
     const buyersMap = new Map(buyerResult.rows.map((row) => [String(row.id), row]));
@@ -295,6 +306,8 @@ router.get(
       const farmer = product ? { full_name: product.farmer_full_name, location: product.farmer_location, business_name: product.farmer_business_name } : null;
       const quantity = Number(orderRow.quantity || 0);
       const unitPrice = Number(product?.price || 0);
+      const deliveryFee = Math.max(0, Number(orderRow.delivery_fee || 0));
+      const deliveryMethod = normalizeText(orderRow.delivery_method).toLowerCase() || "delivery";
       const issue = issueMap.get(String(orderRow.id));
       const rawStatus = normalizeText(orderRow.status).toLowerCase() || "pending";
 
@@ -313,7 +326,13 @@ router.get(
         createdAt: orderRow.created_at,
         createdLabel: formatDateTime(orderRow.created_at),
         quantityLabel: `${quantity} kg`,
-        totalLabel: `ETB ${(unitPrice * quantity).toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
+        totalLabel: `ETB ${(unitPrice * quantity + deliveryFee).toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
+        total: unitPrice * quantity + deliveryFee,
+        deliveryFee,
+        deliveryMethod,
+        deliveryMethodLabel: deliveryMethod === "pickup" ? "Farm pickup" : "Home delivery",
+        deliveryAddress: normalizeText(orderRow.delivery_address),
+        isPaid: paidOrderSet.has(String(orderRow.id)),
         productCategory: product?.category || "Other",
         productLocation: product?.location || "",
         disputeMessage: issue?.message || "",
