@@ -116,33 +116,7 @@ Agriculture remains one of the most important economic sectors in many economies
                                                          └──────────────────────┘
 ```
 
-## Project Structure
-
-```text
-smartagri-marketplace/
-├── client/                         # Frontend application
-│   ├── src/
-│   ├── index.html
-│   ├── vite.config.js
-│   └── .env.example
-├── server/                         # Backend and business logic
-│   ├── src/
-│   ├── .env.example
-│   └── uploads/
-├── database/
-│   ├── schema.sql
-│   ├── migrations/
-│   └── check-schema-parity.mjs
-├── design-images/
-├── images/
-├── nginx.conf
-├── package.json
-├── package-lock.json
-├── verify.mjs
-├── README.md
-├── .gitignore
-└── .vscode/
-```
+````
 
 ## Getting Started
 
@@ -160,7 +134,7 @@ Before running the project locally, make sure you have:
 ```bash
 git clone https://github.com/your-username/smartagri-marketplace.git
 cd smartagri-marketplace
-```
+````
 
 ### 2. Install Dependencies
 
@@ -212,14 +186,6 @@ Copy-Item client/.env.example client/.env
 
 Update the required values in `server/.env`:
 
-```env
-PORT=5000
-PUBLIC_URL=http://localhost:5000
-DATABASE_URL=postgresql://localhost:5432/smartagri_db
-JWT_SECRET=your_super_secure_secret_key
-JWT_EXPIRES_IN=7d
-```
-
 Optional configuration for AI and payments:
 
 ```env
@@ -234,12 +200,6 @@ CHAPA_WEBHOOK_VERIFY_HASH=your_webhook_secret
 ```bash
 npm run dev
 ```
-
-The app will run with:
-
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:5000
-- Health endpoint: http://localhost:5000/api/health
 
 ### 6. Production Build
 
@@ -270,18 +230,6 @@ To skip browser-based smoke checks:
 ```bash
 VERIFY_BROWSER=0 npm run verify
 ```
-
-## Demo Accounts
-
-The application includes seed data for quick testing.
-
-| Role | Email | Password |
-| --- | --- | --- |
-| Admin | `admin@smartagri.com` | `admin1234` |
-| Farmer | `farmer@smartagri.com` | `farmer123` |
-| Buyer | `buyer@smartagri.com` | `buyer123` |
-
-To seed the accounts:
 
 ```bash
 npm run seed
@@ -322,39 +270,6 @@ SEED_DEMO=true npm run seed
 ## API Overview
 
 The backend includes a broad set of API routes covering authentication, products, cart, orders, notifications, settlements, AI, and administration.
-
-### Authentication
-
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `GET /api/auth/me`
-- `POST /api/auth/forgot-password`
-- `POST /api/auth/reset-password`
-
-### Marketplace and Orders
-
-- `GET /api/products`
-- `GET /api/products/featured`
-- `POST /api/orders/from-cart`
-- `POST /api/orders`
-- `GET /api/orders/buyer`
-- `GET /api/orders/farmer`
-- `PATCH /api/orders/:id/status`
-
-### Payments and Settlements
-
-- `GET /api/payments/status`
-- `GET /api/payments/quote`
-- `POST /api/payments/chapa/initialize`
-- `POST /api/payments/chapa/verify`
-- `GET /api/settlements`
-- `GET /api/settlements/admin`
-
-### AI and Realtime
-
-- `POST /api/ai/chat`
-- `GET /api/notifications`
-- Socket.IO events for order, notification, and messaging updates
 
 ## Security and Production Readiness
 
